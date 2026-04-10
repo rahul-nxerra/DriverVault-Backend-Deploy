@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-const { protect } = require("../middleware/auth.middleware");
-const { authorizeRoles } = require("../middleware/role.middleware");
+const { protect } = require("../middlewares/auth.middleware");
+const { authorizeRoles } = require("../middlewares/role.middleware");
 
 // 🔓 Public test
 router.get("/public", (req, res) => {
