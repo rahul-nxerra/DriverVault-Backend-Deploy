@@ -1,7 +1,8 @@
-const Driver = require("./driver.model");
+const Driver = require("./models/driver.model");
 const cloudinary = require("cloudinary").v2;
+const Credential = require("./models/credential.model");
 
-//Public Profile
+// ================= PUBLIC PROFILE =================
 exports.getPublicDriverProfile = async (req, res) => {
   const { id } = req.params;
 
@@ -28,7 +29,7 @@ exports.getPublicDriverProfile = async (req, res) => {
     availability: driver.availability || null,
     bio: driver.bio || null,
 
-    // ⚙️ SAFE PERFORMANCE (summary only)
+    //  PERFORMANCE (summary only)
     performance: driver.performance
       ? {
           safetyScore: driver.performance.safetyScore,
@@ -43,7 +44,7 @@ exports.getPublicDriverProfile = async (req, res) => {
   });
 };
 
-//  DRIVER PRIVATE PROFILE
+// =================  DRIVER PRIVATE PROFILE =================
 exports.getDriverProfile = async (req, res) => {
   const driver = await Driver.findOne({ user: req.user.id }).populate(
     "user",
@@ -95,8 +96,7 @@ exports.getDriverProfile = async (req, res) => {
     .json({ msg: "Driver Profile Fetched", data: response });
 };
 
-// UPDATE DRIVER PROFILE
-
+// =================  UPDATE DRIVER PROFILE =================
 exports.updateDriverProfile = async (req, res) => {
   const driver = await Driver.findOne({ user: req.user.id });
 
@@ -153,4 +153,81 @@ exports.updateDriverProfile = async (req, res) => {
     message: "Profile updated successfully",
     data: driver,
   });
+};
+
+// ================= CREATE CREDENTIAL =================
+exports.createCredential = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "File required" });
+  }
+
+  const credential = await Credential.create({
+    driver: req.user.id,
+    type: req.body.type,
+    title: req.body.title,
+    fileUrl: req.file.path,
+    issuedBy: req.body.issuedBy,
+    expiryDate: req.body.expiryDate,
+  });
+
+  res.status(201).json({
+    message: "Credential uploaded",
+    data: credential,
+  });
+};
+
+// ================= GET ALL CREDENTIAL =================
+exports.getCredentials = async (req, res) => {
+  const credentials = await Credential.find({ driver: req.user.id });
+
+  const updated = credentials.map((c) => {
+    let status = c.status;
+
+    if (c.status === "verified" && c.expiryDate) {
+      const diffDays =
+        (new Date(c.expiryDate) - new Date()) / (1000 * 60 * 60 * 24);
+
+      if (diffDays < 0) status = "expired";
+      else if (diffDays <= 30) status = "expiringSoon";
+    }
+
+    return {
+      ...c.toObject(),
+      status,
+    };
+  });
+  res.json({ count: credentials.length, data: updated }); //check
+};
+
+// ================= GET  SINGLE CREDENTIAL =================
+exports.getSingleCredential = async (req, res) => {
+  const credential = await Credential.findOne({
+    _id: req.params.id,
+    driver: req.user.id,
+  });
+
+  if (!credential) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
+  let status = credential.status;
+
+  // 👉 Apply expiry logic ONLY if verified
+  if (credential.status === "verified" && credential.expiryDate) {
+    const diffDays =
+      (new Date(credential.expiryDate) - new Date()) / (1000 * 60 * 60 * 24);
+
+    if (diffDays < 0) {
+      status = "expired";
+    } else if (diffDays <= 30) {
+      status = "expiringSoon";
+    }
+  }
+
+  const result = {
+    ...credential.toObject(),
+    status, 
+  };
+
+  res.json({ data: result });
 };

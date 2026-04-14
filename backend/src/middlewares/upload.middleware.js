@@ -1,16 +1,26 @@
-
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("../config/cloudinary");
 
-
-// 🔥 Cloudinary storage config
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: {
-    folder: "driver_vault/profile_photos",
-    // transformation: [{ width: 300, height: 300, crop: "fill" }],  
-    allowed_formats: ["jpg", "jpeg", "png"],
+  params: (req, file) => {
+    let folder = "driver_vault/profile_photos";
+
+    // 👉 Credential uploads
+    if (file.fieldname === "document") {
+      if (file.mimetype === "application/pdf") {
+        folder = "driver_vault/credentials/documents";
+      } else {
+        folder = "driver_vault/credentials/images";
+      }
+    }
+
+    return {
+      folder,
+      resource_type: "auto", // 🔥 needed for pdf
+      allowed_formats: ["jpg", "jpeg", "png", "pdf"],
+    };
   },
 });
 

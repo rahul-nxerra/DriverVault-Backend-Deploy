@@ -1,5 +1,5 @@
 const User = require("../user/user.model");
-const Driver = require("../driver/driver.model");
+const Driver = require("../driver/models/driver.model");
 const Carrier = require("../carrier/carrier.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
