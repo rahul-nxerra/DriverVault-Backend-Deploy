@@ -1,6 +1,6 @@
-const Driver = require("./models/driver.model");
+const Driver = require("../models/driver.model");
 const cloudinary = require("cloudinary").v2;
-const Credential = require("./models/credential.model");
+const Credential = require("../models/credential.model");
 
 // ================= PUBLIC PROFILE =================
 exports.getPublicDriverProfile = async (req, res) => {
@@ -132,10 +132,16 @@ exports.updateDriverProfile = async (req, res) => {
   }
 
   const { city, state, zipCode } = req.body;
+  console.log(city, state, zipCode);
 
   if (city) driver.location.city = city;
   if (state) driver.location.state = state;
   if (zipCode) driver.location.zipCode = zipCode;
+  console.log(
+    driver.location.city,
+    driver.location.state,
+    driver.location.zipCode,
+  );
 
   // 🔥 CLOUDINARY IMAGE URL
   if (req.file) {
@@ -226,7 +232,7 @@ exports.getSingleCredential = async (req, res) => {
 
   const result = {
     ...credential.toObject(),
-    status, 
+    status,
   };
 
   res.json({ data: result });

@@ -1,10 +1,15 @@
 const express = require("express");
 const router = express.Router();
-const driverController = require("./driver.controller");
-const { protect } = require("../../middlewares/auth.middleware");
-const { authorizeRoles } = require("../../middlewares/role.middleware");
+const driverController = require("../controllers/driver.controller");
+const { protect } = require("../../../middlewares/auth.middleware");
+const { authorizeRoles } = require("../../../middlewares/role.middleware");
 const asyncHandler = require("express-async-handler");
-const upload = require("../../middlewares/upload.middleware");
+const upload = require("../../../middlewares/upload.middleware");
+const {
+  createCredentialSchema,
+} = require("../validators/credential.validator");
+const { updateProfileSchema } = require("../validators/driver.validator");
+const validate = require("../../../middlewares/validate.middleware");
 
 // ================= PRIVATE ROUTES =================
 
@@ -21,6 +26,7 @@ router.put(
   "/profile/update",
   protect,
   authorizeRoles("driver"),
+  validate(updateProfileSchema),
   upload.single("profilePhoto"),
   asyncHandler(driverController.updateDriverProfile),
 );
@@ -32,6 +38,7 @@ router.post(
   "/credentials",
   protect,
   authorizeRoles("driver"),
+  validate(createCredentialSchema),
   upload.single("document"),
   asyncHandler(driverController.createCredential),
 );
