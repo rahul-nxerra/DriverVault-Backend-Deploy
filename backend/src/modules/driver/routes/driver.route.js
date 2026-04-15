@@ -23,7 +23,7 @@ router.get(
 
 // ================= DRIVER UPDATE OWN PROFILE =================
 router.put(
-  "/profile/update",
+  "/update",
   protect,
   authorizeRoles("driver"),
   validate(updateProfileSchema),

@@ -10,7 +10,7 @@ const credentialSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: [
-        "license",
+        "cdl",
         "medical",
         "hazmat",
         "training",
@@ -30,6 +30,17 @@ const credentialSchema = new mongoose.Schema(
     },
     issuedBy: String,
     expiryDate: Date,
+
+    renewedFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Credential",
+      default: null,
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
     status: {
       type: String,
       enum: ["pending", "verified", "rejected"],

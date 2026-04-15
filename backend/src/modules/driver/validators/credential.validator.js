@@ -1,13 +1,14 @@
 const Joi = require("joi");
 
 exports.createCredentialSchema = Joi.object({
-  title: Joi.string().required(),
+  title: Joi.string().trim().min(2).required(),
 
   type: Joi.string()
-    .valid("license", "medical", "hazmat", "training", "twic", "safety", "other")
+    .lowercase()
+    .valid("cdl", "medical", "hazmat", "training", "twic", "safety", "other")
     .required(),
 
-  issuedBy: Joi.string().optional(),
+  issuedBy: Joi.string().trim().optional(),
 
-  expiryDate: Joi.date().optional(),
+  expiryDate: Joi.date().iso().optional(),
 });

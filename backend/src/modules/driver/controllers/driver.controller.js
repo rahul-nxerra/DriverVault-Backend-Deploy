@@ -126,24 +126,23 @@ exports.updateDriverProfile = async (req, res) => {
     }
   });
 
-  // ✅ Ensure location object exists
-  if (!driver.location) {
-    driver.location = {};
-  }
+  //  HANDLE LOCATION
 
-  const { city, state, zipCode } = req.body;
-  console.log(city, state, zipCode);
+  const location = req.body.location || {};
+  const city = location.city || req.body["location.city"] || req.body.city;
+
+  const state = location.state || req.body["location.state"] || req.body.state;
+
+  const zipCode =
+    location.zipCode || req.body["location.zipCode"] || req.body.zipCode;
+
+  if (!driver.location) driver.location = {};
 
   if (city) driver.location.city = city;
   if (state) driver.location.state = state;
   if (zipCode) driver.location.zipCode = zipCode;
-  console.log(
-    driver.location.city,
-    driver.location.state,
-    driver.location.zipCode,
-  );
 
-  // 🔥 CLOUDINARY IMAGE URL
+  //  CLOUDINARY IMAGE URL
   if (req.file) {
     if (driver.profilePhotoId) {
       await cloudinary.uploader.destroy(driver.profilePhotoId);
@@ -164,31 +163,76 @@ exports.updateDriverProfile = async (req, res) => {
 // ================= CREATE CREDENTIAL =================
 exports.createCredential = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: "File required" });
+    return res.status(400).json({ message: " Document File required" });
   }
 
-  const credential = await Credential.create({
+  const { title, type, issuedBy, expiryDate, renewedFrom } = req.body;
+
+  // 🔥 Prevent double renewal (optional but strong)
+  if (renewedFrom) {
+    const old = await Credential.findById(renewedFrom);
+
+    if (!old || !old.isActive) {
+      return res.status(400).json({
+        message: "Invalid or already renewed credential",
+      });
+    }
+    if (renewedFrom) {
+      const old = await Credential.findById(renewedFrom);
+
+      if (!old || !old.isActive) {
+        return res.status(400).json({
+          message: "Invalid or already renewed credential",
+        });
+      }
+
+      // RESOURCE LEVEL AUTHORIZATION | DRIVER ONLY CAN RENEW HIS CREDENTIAL
+      if (!old.driver.equals(req.user.id)) {
+        return res.status(403).json({
+          message: "Unauthorized: You can only renew your own credential",
+        });
+      }
+    }
+  }
+
+  // ✅ Create new credential
+  const newCredential = await Credential.create({
     driver: req.user.id,
-    type: req.body.type,
-    title: req.body.title,
+    title,
+    type,
+    issuedBy,
+    expiryDate,
     fileUrl: req.file.path,
-    issuedBy: req.body.issuedBy,
-    expiryDate: req.body.expiryDate,
+    status: "pending",
+    isVerified: false,
+    renewedFrom: renewedFrom || null,
+    isActive: true,
   });
 
+  // 🔥 Deactivate old credential
+  if (renewedFrom) {
+    await Credential.findByIdAndUpdate(renewedFrom, {
+      isActive: false,
+    });
+  }
+
   res.status(201).json({
-    message: "Credential uploaded",
-    data: credential,
+    message: "Credential uploaded successfully",
+    data: newCredential,
   });
 };
 
 // ================= GET ALL CREDENTIAL =================
 exports.getCredentials = async (req, res) => {
-  const credentials = await Credential.find({ driver: req.user.id });
+  const credentials = await Credential.find({
+    driver: req.user.id,
+    isActive: true, // 🔥 important for renewal system
+  }).sort({ createdAt: -1 });
 
   const updated = credentials.map((c) => {
     let status = c.status;
 
+    //  expiry logic
     if (c.status === "verified" && c.expiryDate) {
       const diffDays =
         (new Date(c.expiryDate) - new Date()) / (1000 * 60 * 60 * 24);
@@ -210,10 +254,11 @@ exports.getSingleCredential = async (req, res) => {
   const credential = await Credential.findOne({
     _id: req.params.id,
     driver: req.user.id,
+    isActive: true,
   });
 
   if (!credential) {
-    return res.status(404).json({ message: "Not found" });
+    return res.status(404).json({ message: " Credential not found" });
   }
 
   let status = credential.status;
