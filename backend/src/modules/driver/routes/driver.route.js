@@ -11,12 +11,16 @@ const {
 const { updateProfileSchema } = require("../validators/driver.validator");
 const validate = require("../../../middlewares/validate.middleware");
 
+// SUB ROUTES
 const performanceRoutes = require("./performance.routes");
 const credentialRoutes = require("./credential.routes");
+const accessRequestRoutes = require("./accessRequest.routes");
 
-// mounting credential and performance routes
+// ================= SUB ROUTES MOUNTING=================
+
 router.use("/performance", performanceRoutes);
 router.use("/credentials", credentialRoutes);
+router.use("/access-request", accessRequestRoutes);
 
 // ================= PRIVATE ROUTES =================
 
