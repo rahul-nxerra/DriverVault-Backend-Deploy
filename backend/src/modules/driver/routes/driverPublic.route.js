@@ -6,8 +6,6 @@ const { authorizeRoles } = require("../../../middlewares/role.middleware");
 const asyncHandler = require("express-async-handler");
 const checkAccess = require("../../../middlewares/checkAccess");
 
-console.log("driverPublicRoutes loaded");
-  
 // 🔐 Carrier/Admin access
 router.get(
   "/drivers/:driverId/performance",
