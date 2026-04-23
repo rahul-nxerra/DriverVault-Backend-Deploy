@@ -5,43 +5,35 @@ const Driver = require("../models/driver.model");
 
 // ================= CONSTANTS =================
 
-// ✅ allowed categories (underscore only)
+// ✅ allowed categories
 const allowedCategories = [
-  "safety_record",
+  "safety",
   "reliability",
   "training",
-  "employment_history",
+  "employment",
   "credential",
   "other",
 ];
 
 // ✅ category → internal category
 const mapCategory = (category) => {
-  const map = {
-    safety_record: "performance",
-    reliability: "performance",
-    training: "performance",
+  if (["safety", "reliability", "training"].includes(category)) {
+    return "performance";
+  }
 
-    employment_history: "employment",
-    credential: "credential",
+  if (category === "employment") return "employment";
+  if (category === "credential") return "credential";
 
-    other: "other",
-  };
-
-  return map[category];
+  return "other";
 };
 
 // ✅ category → model
 const detectModel = (category) => {
-  if (
-    category === "safety_record" ||
-    category === "reliability" ||
-    category === "training"
-  ) {
+  if (["safety", "reliability", "training"].includes(category)) {
     return "PerformanceRecord";
   }
 
-  if (category === "employment_history") {
+  if (category === "employment") {
     return "Employment";
   }
 
@@ -58,25 +50,27 @@ exports.createDispute = async (req, res) => {
   try {
     const { title, description, category, relatedRecord } = req.body;
 
-    //  validate required fields
+    // 🔥 validate required fields
     if (!title || !description || !category) {
       return res.status(400).json({
         message: "title, description, category are required",
       });
     }
 
-    //  strict category check
+    // 🔥 strict category check
     if (!allowedCategories.includes(category)) {
       return res.status(400).json({
-        message: "Invalid category. Use underscore format.",
+        message: "Invalid category.",
       });
     }
+
     if (category !== "other" && !relatedRecord) {
       return res.status(400).json({
         message: "relatedRecord ID is required for this category",
       });
     }
 
+    // 🔐 get driver
     const driver = await Driver.findOne({ user: req.user.id });
 
     if (!driver) {
@@ -85,11 +79,12 @@ exports.createDispute = async (req, res) => {
       });
     }
 
+    // 🔥 detect model
     const relatedModel = detectModel(category);
 
     let record = null;
 
-    //  optional record validation
+    // 🔍 validate related record
     if (relatedModel && relatedRecord) {
       if (!mongoose.Types.ObjectId.isValid(relatedRecord)) {
         return res.status(400).json({
@@ -106,6 +101,17 @@ exports.createDispute = async (req, res) => {
         });
       }
 
+      const existing = await Dispute.findOne({
+        driver: driver._id,
+        relatedRecord,
+        status: { $in: ["submitted", "under_review"] },
+      });
+
+      if (existing) {
+        return res.status(400).json({
+          message: "You have already raised a dispute for this record",
+        });
+      }
       // 🔐 ownership check
       if (record.driver && record.driver.toString() !== driver._id.toString()) {
         return res.status(403).json({
@@ -114,13 +120,29 @@ exports.createDispute = async (req, res) => {
       }
     }
 
+    // ================= FILE HANDLING =================
+
+    let evidenceUrl = null;
+    let evidenceId = null;
+
+    if (req.file) {
+      evidenceUrl = req.file.path; // Cloudinary URL
+      evidenceId = req.file.filename; // public_id
+    }
+
+    // ================= CREATE DISPUTE =================
+
     const dispute = await Dispute.create({
       driver: driver._id,
       title,
       description,
-      category: mapCategory(category), //  internal category
+      category: mapCategory(category), // internal category
       relatedModel,
       relatedRecord: record ? record._id : null,
+
+      // 🔥 NEW FIELDS
+      evidenceUrl,
+      evidenceId,
     });
 
     return res.status(201).json({
@@ -135,7 +157,6 @@ exports.createDispute = async (req, res) => {
     });
   }
 };
-
 // ================= GET MY DISPUTES =================
 
 exports.getMyDisputes = async (req, res) => {

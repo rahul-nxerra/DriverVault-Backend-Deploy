@@ -1,24 +1,25 @@
 const Joi = require("joi");
 
 exports.createDisputeSchema = Joi.object({
-  title: Joi.string().min(3).max(100).required(),
+  title: Joi.string().trim().min(3).required(),
 
-  description: Joi.string().min(10).max(1000).required(),
+  description: Joi.string().trim().min(5).required(),
 
   category: Joi.string()
     .valid(
-      "safety_record",
-      "training",
+      "safety",
       "reliability",
-      "employment_history",
+      "training",
+      "employment",
       "credential",
-      "other",
+      "other"
     )
     .required(),
 
-  relatedRecord: Joi.string().required(), // ObjectId
-
-  relatedModel: Joi.string()
-    .valid("PerformanceRecord", "Credential", "Employment")
-    .optional(),
+  relatedRecord: Joi.string()
+    .when("category", {
+      is: Joi.valid("other"),
+      then: Joi.optional().allow(null),
+      otherwise: Joi.required(),
+    }),
 });

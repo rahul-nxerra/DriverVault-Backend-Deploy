@@ -38,7 +38,7 @@ exports.createCredential = async (req, res) => {
 
   // ✅ create credential
   const newCredential = await Credential.create({
-    driver: driverProfile._id, 
+    driver: driverProfile._id,
     title,
     type,
     issuedBy,
@@ -70,7 +70,7 @@ exports.getCredentials = async (req, res) => {
   });
 
   const credentials = await Credential.find({
-    driver: driverProfile._id, 
+    driver: driverProfile._id,
     isActive: true,
   }).sort({ createdAt: -1 });
 
@@ -88,10 +88,11 @@ exports.getCredentials = async (req, res) => {
     return {
       ...c.toObject(),
       status,
+      category: "credential",
     };
   });
 
-  res.json({ count: credentials.length, data: updated });
+  res.json({ count: updated.length, data: updated });
 };
 
 // ================= GET SINGLE =================
@@ -102,7 +103,7 @@ exports.getSingleCredential = async (req, res) => {
 
   const credential = await Credential.findOne({
     _id: req.params.id,
-    driver: driverProfile._id, 
+    driver: driverProfile._id,
     isActive: true,
   });
 
@@ -124,6 +125,7 @@ exports.getSingleCredential = async (req, res) => {
     data: {
       ...credential.toObject(),
       status,
+      category: "credential",
     },
   });
 };

@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const upload = require("../../../middlewares/upload.middleware");
 
 const disputeController = require("../controllers/dispute.controller");
 
@@ -19,6 +20,7 @@ router
   .post(
     protect,
     authorizeRoles("driver"),
+    upload.single("evidence"),
     validate(createDisputeSchema),
     asyncHandler(disputeController.createDispute),
   )

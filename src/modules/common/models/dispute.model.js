@@ -8,32 +8,31 @@ const disputeSchema = new mongoose.Schema(
       required: true,
     },
 
-    //  WHAT TYPE OF ISSUE
+    // 🔥 WHAT TYPE OF ISSUE
     category: {
       type: String,
-      enum: [
-        "performance",
-        "credential",
-        "employment",
-        "other",
-      ],
+      enum: ["performance", "credential", "employment", "other"],
       required: true,
     },
 
-    //  WHICH RECORD IS BEING DISPUTED
+    // 🔥 WHICH RECORD IS BEING DISPUTED
     relatedModel: {
       type: String,
       enum: ["PerformanceRecord", "Credential", "Employment"],
-      required: true,
+      required: function () {
+        return this.category !== "other";
+      },
     },
 
     relatedRecord: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      refPath: "relatedModel", //  dynamic ref
+      refPath: "relatedModel",
+      required: function () {
+        return this.category !== "other";
+      },
     },
 
-    //  DRIVER INPUT
+    // 🔥 DRIVER INPUT
     title: {
       type: String,
       required: true,
@@ -45,6 +44,7 @@ const disputeSchema = new mongoose.Schema(
     },
 
     evidenceUrl: String,
+    evidenceId: String,
 
     // 🔄 STATUS FLOW
     status: {
@@ -53,7 +53,7 @@ const disputeSchema = new mongoose.Schema(
       default: "submitted",
     },
 
-    // ADMIN ACTION
+    // 🔥 ADMIN ACTION
     resolution: {
       outcome: {
         type: String,
@@ -64,12 +64,7 @@ const disputeSchema = new mongoose.Schema(
 
       scoreImpact: {
         type: String,
-        enum: [
-          "no_change",
-          "increase",
-          "decrease",
-          "recalculate",
-        ],
+        enum: ["no_change", "increase", "decrease", "recalculate"],
       },
 
       resolvedBy: {
@@ -80,7 +75,21 @@ const disputeSchema = new mongoose.Schema(
       resolvedAt: Date,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
+);
+
+// =================  UNIQUE INDEX =================
+
+//  Prevent duplicate active disputes
+disputeSchema.index(
+  { driver: 1, relatedRecord: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["submitted", "under_review"] },
+      relatedRecord: { $exists: true },
+    },
+  },
 );
 
 module.exports = mongoose.model("Dispute", disputeSchema);

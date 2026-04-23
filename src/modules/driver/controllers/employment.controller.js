@@ -48,14 +48,18 @@ exports.getEmployment = async (req, res) => {
     if (!driver) {
       return res.status(404).json({ message: "Driver not found" });
     }
-
     const employment = await Employment.find({
       driver: driver._id,
     }).sort({ startDate: -1 });
 
+    const formatted = employment.map((e) => ({
+      ...e.toObject(),
+      category: "employment",
+    }));
+
     return res.status(200).json({
-      count: employment.length,
-      data: employment,
+      count: formatted.length,
+      data: formatted,
     });
   } catch (error) {
     console.error("Get Employment Error:", error);
@@ -98,7 +102,10 @@ exports.getSingleEmployment = async (req, res) => {
     }
 
     return res.status(200).json({
-      data: employment,
+      data: {
+        ...employment.toObject(),
+        category: "employment",
+      },
     });
   } catch (error) {
     console.error("Get Single Employment Error:", error);
