@@ -19,6 +19,7 @@ const accessRequestRoutes = require("./accessRequest.routes");
 const driverPublicRoutes = require("./driverPublic.route");
 const employmentRoutes = require("./employment.routes");
 const disputeRoutes = require("./dispute.routes");
+const consentRoutes = require("./consent.routes");
 
 // ================= SUB ROUTES MOUNTING=================
 
@@ -27,6 +28,7 @@ router.use("/credentials", credentialRoutes);
 router.use("/", accessRequestRoutes);
 router.use("/employment", employmentRoutes);
 router.use("/disputes", disputeRoutes);
+router.use("/consent", consentRoutes);
 
 // ================= PRIVATE ROUTES =================
 

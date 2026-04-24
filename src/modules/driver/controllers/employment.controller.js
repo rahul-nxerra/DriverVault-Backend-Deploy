@@ -1,6 +1,7 @@
 const Employment = require("../models/employment.model");
 const Driver = require("../models/driver.model");
 const mongoose = require("mongoose");
+const { logAudit } = require("../../../utils/auditLogger");
 
 // ================= CREATE EMPLOYMENT =================
 exports.createEmployment = async (req, res) => {
@@ -215,6 +216,50 @@ exports.deleteEmployment = async (req, res) => {
     console.error("Delete Employment Error:", error);
     return res.status(500).json({
       message: "Failed to delete employment",
+    });
+  }
+};
+
+exports.getDriverEmploymentById = async (req, res) => {
+  try {
+    const { driverId } = req.params;
+
+    // validate driverId
+    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      return res.status(400).json({
+        message: "Invalid driver ID",
+      });
+    }
+
+    const driver = await Driver.findById(driverId);
+
+    if (!driver) {
+      return res.status(404).json({
+        message: "Driver not found",
+      });
+    }
+
+    const employment = await Employment.find({
+      driver: driver._id,
+    }).sort({ startDate: -1 });
+
+    await logAudit({
+      actorId: req.carrier?._id || req.user.id,
+      actorType: req.user.role,
+      action: "VIEW_EMPLOYMENT",
+      resource: "employment",
+      resourceId: driver._id,
+      targetDriverId: driver._id,
+      req,
+    });
+
+    return res.status(200).json({
+      count: employment.length,
+      data: employment,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch employment data",
     });
   }
 };

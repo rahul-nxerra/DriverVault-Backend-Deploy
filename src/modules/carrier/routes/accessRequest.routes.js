@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
+
 const validate = require("../../../middlewares/validate.middleware");
 const {
   requestAccessSchema,
 } = require("../../common/validators/accessRequest.validator");
+
 const asyncHandler = require("express-async-handler");
 const { protect } = require("../../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../../middlewares/role.middleware");
@@ -18,7 +20,7 @@ router.post(
   protect,
   authorizeRoles("carrier"),
   validate(requestAccessSchema),
-  asyncHandler(requestAccess),
+  asyncHandler(requestAccess)
 );
 
 module.exports = router;

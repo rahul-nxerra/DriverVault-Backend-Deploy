@@ -50,14 +50,14 @@ exports.createDispute = async (req, res) => {
   try {
     const { title, description, category, relatedRecord } = req.body;
 
-    // 🔥 validate required fields
+    //  validate required fields
     if (!title || !description || !category) {
       return res.status(400).json({
         message: "title, description, category are required",
       });
     }
 
-    // 🔥 strict category check
+    //  strict category check
     if (!allowedCategories.includes(category)) {
       return res.status(400).json({
         message: "Invalid category.",
@@ -70,7 +70,7 @@ exports.createDispute = async (req, res) => {
       });
     }
 
-    // 🔐 get driver
+    //  get driver
     const driver = await Driver.findOne({ user: req.user.id });
 
     if (!driver) {
@@ -79,12 +79,12 @@ exports.createDispute = async (req, res) => {
       });
     }
 
-    // 🔥 detect model
+    //  detect model
     const relatedModel = detectModel(category);
 
     let record = null;
 
-    // 🔍 validate related record
+    //  validate related record
     if (relatedModel && relatedRecord) {
       if (!mongoose.Types.ObjectId.isValid(relatedRecord)) {
         return res.status(400).json({
@@ -140,7 +140,7 @@ exports.createDispute = async (req, res) => {
       relatedModel,
       relatedRecord: record ? record._id : null,
 
-      // 🔥 NEW FIELDS
+      
       evidenceUrl,
       evidenceId,
     });
@@ -250,7 +250,7 @@ exports.deleteDispute = async (req, res) => {
       });
     }
 
-    // 🔥 allow delete only if not processed
+    //  delete only if not processed
     if (dispute.status !== "submitted") {
       return res.status(400).json({
         message: "Cannot delete processed dispute",

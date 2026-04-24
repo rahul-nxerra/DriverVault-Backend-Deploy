@@ -1,15 +1,14 @@
 const express = require("express");
 const router = express.Router();
-
 const performanceController = require("../controllers/performance.controller");
-
+const checkDriverAccess = require("../../../middlewares/checkDriverAccess");
 const { protect } = require("../../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../../middlewares/role.middleware");
 const asyncHandler = require("express-async-handler");
 
 // ================= PERFORMANCE ROUTES =================
 
-// 🔥 FULL DASHBOARD (driver own)
+// FULL DASHBOARD (driver own)
 router
   .route("/")
   .get(
@@ -18,7 +17,7 @@ router
     asyncHandler(performanceController.getPerformance),
   );
 
-// 🔥 ONLY RECORDS (driver own)
+// ONLY RECORDS (driver own)
 router
   .route("/records")
   .get(
@@ -27,13 +26,13 @@ router
     asyncHandler(performanceController.getPerformanceRecords),
   );
 
-// 🔥 CARRIER / ADMIN VIEW DRIVER PERFORMANCE
-router
-  .route("/:driverId")
-  .get(
-    protect,
-    authorizeRoles("carrier", "admin"),
-    asyncHandler(performanceController.getDriverPerformanceById),
-  );
+// CARRIER / ADMIN VIEW DRIVER PERFORMANCE
+router.get(
+  "/view/:driverId",
+  protect,
+  authorizeRoles("carrier", "admin"),
+  checkDriverAccess("performance"),
+  asyncHandler(performanceController.getDriverPerformanceById),
+);
 
 module.exports = router;

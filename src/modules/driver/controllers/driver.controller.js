@@ -3,6 +3,7 @@ const cloudinary = require("cloudinary").v2;
 const Credential = require("../models/credential.model");
 const Employment = require("../models/employment.model");
 const PerformanceRecord = require("../models/performanceRecord.model");
+const ConsentPreferences = require("../../driver/models/consentPreferences.model");
 
 const {
   getDriverPerformanceData,
@@ -21,16 +22,35 @@ exports.getPublicDriverProfile = async (req, res) => {
 
   const performanceData = await getDriverPerformanceData(driver._id);
 
+  // 🔹 fetch consent
+  const prefs = await ConsentPreferences.findOne({
+    driverId: driver._id,
+  });
+
+  // 🔹 build response safely
+  let fullName = `${driver.firstName} ${driver.lastName}`;
+  let location = {
+    city: driver.location?.city || null,
+    state: driver.location?.state || null,
+  };
+
+  // 🔹 apply personal info filtering
+  if (prefs && prefs.personalInfo === false) {
+    fullName = null;
+    location = null;
+  }
+
   const publicData = {
     id: driver._id,
-    profilePhoto: driver.profilePhoto || null,
-    fullName: `${driver.firstName} ${driver.lastName}`,
 
-    location: {
-      city: driver.location?.city || null,
-      state: driver.location?.state || null,
-    },
+    // 🔐 filtered
+    profilePhoto:
+      prefs?.personalInfo === false ? null : driver.profilePhoto || null,
+    fullName,
 
+    location,
+
+    // always allowed (professional data)
     licenseType: driver.licenseType,
     experienceYears: driver.experienceYears || 0,
     availability: driver.availability || null,

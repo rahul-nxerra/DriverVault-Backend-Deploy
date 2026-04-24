@@ -3,17 +3,13 @@ const Carrier = require("../models/carrier.model");
 const Driver = require("../../driver/models/driver.model");
 
 exports.requestAccess = async (req, res) => {
-  const { driverId } = req.body;
+  const { driverId, requestedData, accessType, reason } = req.body;
 
-  // ✅ 1. validate driver
   const driver = await Driver.findById(driverId);
   if (!driver) {
-    return res.status(400).json({
-      message: "Invalid driver.",
-    });
+    return res.status(400).json({ message: "Invalid driver." });
   }
 
-  // ✅ 2. get carrier profile
   const carrierProfile = await Carrier.findOne({
     user: req.user.id,
   });
@@ -24,40 +20,36 @@ exports.requestAccess = async (req, res) => {
     });
   }
 
-  // ✅ 3. check existing request
+  if (
+    !requestedData ||
+    Object.values(requestedData).every((v) => v === false)
+  ) {
+    return res.status(400).json({
+      message: "Select at least one data type",
+    });
+  }
+
   const existing = await AccessRequest.findOne({
     driver: driverId,
     carrierProfile: carrierProfile._id,
   });
 
-  if (existing) {
-    // ❌ already pending
-    if (existing.status === "pending") {
-      return res.status(400).json({
-        message: "Request already pending",
-      });
-    }
-
-    // ❌ already approved and not expired
-    if (
-      existing.status === "approved" &&
-      existing.expiresAt &&
-      existing.expiresAt > new Date()
-    ) {
-      return res.status(400).json({
-        message: "Access already granted",
-      });
-    }
+  if (existing && existing.status === "pending") {
+    return res.status(400).json({
+      message: "Request already pending",
+    });
   }
 
-  // ✅ 4. create NEW request (never reuse)
   const request = await AccessRequest.create({
     driver: driverId,
     carrierProfile: carrierProfile._id,
+    requestedData,
+    accessType: accessType || "view",
+    reason,
   });
 
   res.status(201).json({
     message: "Access request sent",
-    request,
+    data: request,
   });
 };
