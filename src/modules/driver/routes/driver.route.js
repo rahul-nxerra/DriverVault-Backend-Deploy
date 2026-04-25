@@ -61,6 +61,14 @@ router.put(
   asyncHandler(driverController.updateDriverProfile),
 );
 
+//CHANGE PASSWORD
+router.put(
+  "/change-password",
+  protect,
+  authorizeRoles("driver"),
+  asyncHandler(driverController.changePassword)
+);
+
 // ================= PUBLIC ROUTE =================
 
 // 🌐 Public driver profile (no auth)

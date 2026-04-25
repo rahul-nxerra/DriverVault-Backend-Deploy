@@ -5,6 +5,8 @@ const Employment = require("../models/employment.model");
 const PerformanceRecord = require("../models/performanceRecord.model");
 const Carrier = require("../../carrier/models/carrier.model");
 const AccessRequest = require("../../common/models/accessRequest.model");
+const bcrypt = require("bcryptjs");
+const User = require("../../user/user.model"); 
 
 const {
   getDriverPerformanceData,
@@ -238,6 +240,61 @@ exports.getDriverProfileById = async (req, res) => {
     console.log("PROFILE ERROR:", error); // 👈 ADD THIS
     return res.status(500).json({
       message: "Failed to fetch driver profile",
+    });
+  }
+};
+
+
+
+// ================= CHANGE PASSWORD =================
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // 🔹 validation
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Current and new password required",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "New password must be at least 6 characters",
+      });
+    }
+
+    // 🔹 get user
+    const user = await User.findById(req.user.id).select("+password");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // 🔹 compare current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({
+        message: "Current password is incorrect",
+      });
+    }
+
+    // 🔹 hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    await user.save();
+
+    return res.json({
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.error("CHANGE PASSWORD ERROR:", error);
+    return res.status(500).json({
+      message: "Failed to change password",
     });
   }
 };
