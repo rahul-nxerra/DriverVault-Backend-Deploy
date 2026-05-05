@@ -77,9 +77,10 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
   });
 
   // ================= CALCULATE SCORES =================
-  const driverScores = Object.values(driverMap).map((records) =>
-    calculateScores(records),
-  );
+  const driverScores = driverIds.map((id) => {
+    const records = driverMap[id.toString()] || [];
+    return calculateScores(records);
+  });
 
   // ================= BASIC STATS =================
   const totalDrivers = driverIds.length;
@@ -140,7 +141,7 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
       } else {
         credentialStatus.verified++;
       }
-    } else {
+    } else if (c.status === "pending") {
       credentialStatus.pending++;
     }
   });
@@ -148,9 +149,13 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
   // ================= COMPLIANCE =================
   const totalCredentials = credentials.length;
 
-  const validCredentials = credentials.filter(
-    (c) => c.status === "verified" && c.isActive,
-  ).length;
+  const validCredentials = credentials.filter((c) => {
+    if (!(c.status === "verified" && c.isActive)) return false;
+
+    if (c.expiryDate && c.expiryDate < now) return false; // ❌ exclude expired
+
+    return true;
+  }).length;
 
   const complianceRate = totalCredentials
     ? Math.round((validCredentials / totalCredentials) * 100)
@@ -164,57 +169,27 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
     { month: "Jan", hired: 4, left: 1 },
   ];
 
-  // ================= REAL COMPLIANCE TREND =================
-  const trendAgg = await PerformanceRecord.aggregate([
+  // ================= REAL COMPLIANCE TREND (CREDENTIAL BASED) =================
+  const credentialTrendAgg = await Credential.aggregate([
     {
       $match: {
         driver: { $in: driverIds },
-        isActive: true,
-        status: "verified",
       },
     },
     {
       $addFields: {
         month: {
-          $dateToString: { format: "%b", date: "$date" },
+          $dateToString: { format: "%b", date: "$createdAt" },
         },
-      },
-    },
-    {
-      $group: {
-        _id: {
-          month: "$month",
-          driver: "$driver",
-        },
-        safety: {
-          $sum: {
-            $cond: [{ $eq: ["$category", "safety"] }, "$impact", 0],
-          },
-        },
-        reliability: {
-          $sum: {
-            $cond: [{ $eq: ["$category", "reliability"] }, "$impact", 0],
-          },
-        },
-        training: {
-          $sum: {
-            $cond: [{ $eq: ["$category", "training"] }, "$impact", 0],
-          },
-        },
-      },
-    },
-    {
-      $project: {
-        month: "$_id.month",
-        overall: {
-          $round: [
+        isValid: {
+          $cond: [
             {
-              $avg: [
-                { $add: [80, "$safety"] },
-                { $add: [80, "$reliability"] },
-                { $add: [80, "$training"] },
+              $and: [
+                { $eq: ["$status", "verified"] },
+                { $eq: ["$isActive", true] },
               ],
             },
+            1,
             0,
           ],
         },
@@ -223,21 +198,28 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
     {
       $group: {
         _id: "$month",
-        rate: { $avg: "$overall" },
+        total: { $sum: 1 },
+        valid: { $sum: "$isValid" },
       },
     },
     {
       $project: {
         _id: 0,
         month: "$_id",
-        rate: { $round: ["$rate", 0] },
+        rate: {
+          $round: [
+            {
+              $multiply: [{ $divide: ["$valid", "$total"] }, 100],
+            },
+            0,
+          ],
+        },
       },
     },
   ]);
 
   // ================= FIXED 6 MONTH TIMELINE =================
   const months = [];
- 
 
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -249,7 +231,7 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
 
   // Convert aggregation to map
   const trendMap = {};
-  trendAgg.forEach((t) => {
+  credentialTrendAgg.forEach((t) => {
     trendMap[t.month] = t.rate;
   });
 
