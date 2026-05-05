@@ -16,10 +16,21 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
     expiresAt: { $gt: new Date() },
   });
 
-  const driverIds = approvedRequests.map((r) => r.driver);
+  const performanceDriverIds = [];
+  const credentialDriverIds = [];
+
+  approvedRequests.forEach((req) => {
+    if (req.allowedData?.performance) {
+      performanceDriverIds.push(req.driver);
+    }
+
+    if (req.allowedData?.cdl || req.allowedData?.employment) {
+      credentialDriverIds.push(req.driver);
+    }
+  });
 
   // ================= NO DRIVERS CASE =================
-  if (!driverIds.length) {
+  if (!approvedRequests.length) {
     return {
       stats: {
         totalDrivers: 0,
@@ -48,7 +59,7 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
   const performanceAgg = await PerformanceRecord.aggregate([
     {
       $match: {
-        driver: { $in: driverIds },
+        driver: { $in: performanceDriverIds },
         isActive: true,
         status: "verified",
       },
@@ -77,13 +88,13 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
   });
 
   // ================= CALCULATE SCORES =================
-  const driverScores = driverIds.map((id) => {
+  const driverScores = performanceDriverIds.map((id) => {
     const records = driverMap[id.toString()] || [];
     return calculateScores(records);
   });
 
   // ================= BASIC STATS =================
-  const totalDrivers = driverIds.length;
+  const totalDrivers = approvedRequests.length;
 
   let totalSafety = 0;
   let totalReliability = 0;
@@ -117,7 +128,7 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
 
   // ================= CREDENTIAL STATUS =================
   const credentials = await Credential.find({
-    driver: { $in: driverIds },
+    driver: { $in: credentialDriverIds },
   });
 
   const now = new Date();
@@ -173,7 +184,7 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
   const credentialTrendAgg = await Credential.aggregate([
     {
       $match: {
-        driver: { $in: driverIds },
+        driver: { $in: credentialDriverIds },
       },
     },
     {
@@ -187,6 +198,12 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
               $and: [
                 { $eq: ["$status", "verified"] },
                 { $eq: ["$isActive", true] },
+                {
+                  $or: [
+                    { $eq: ["$expiryDate", null] },
+                    { $gt: ["$expiryDate", new Date()] },
+                  ],
+                },
               ],
             },
             1,
