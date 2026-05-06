@@ -232,11 +232,26 @@ exports.getCarrierAccessRequests = async (req, res) => {
     });
   }
 
-  const requests = await AccessRequest.find({
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+  const skip = (page - 1) * limit;
+
+  const query = {
     carrierProfile: carrierProfile._id,
-  })
+  };
+
+  const [requests, total] = await Promise.all([
+    AccessRequest.find(query)
     .populate("driver")
-    .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    AccessRequest.countDocuments(query),
+  ]);
+
+  const allStatusRequests = await AccessRequest.find(query).select(
+    "status expiresAt",
+  );
 
   const now = new Date();
 
@@ -274,18 +289,46 @@ exports.getCarrierAccessRequests = async (req, res) => {
     }),
   );
 
+  const normalizedStatus = (request) => {
+    if (
+      request.status === "approved" &&
+      request.expiresAt &&
+      request.expiresAt < now
+    ) {
+      return "expired";
+    }
+
+    return request.status;
+  };
+
   const stats = {
-    total: data.length,
-    pending: data.filter((request) => request.status === "pending").length,
-    approved: data.filter((request) => request.status === "approved").length,
-    rejected: data.filter((request) => request.status === "rejected").length,
-    revoked: data.filter((request) => request.status === "revoked").length,
-    expired: data.filter((request) => request.status === "expired").length,
+    total,
+    pending: allStatusRequests.filter(
+      (request) => normalizedStatus(request) === "pending",
+    ).length,
+    approved: allStatusRequests.filter(
+      (request) => normalizedStatus(request) === "approved",
+    ).length,
+    rejected: allStatusRequests.filter(
+      (request) => normalizedStatus(request) === "rejected",
+    ).length,
+    revoked: allStatusRequests.filter(
+      (request) => normalizedStatus(request) === "revoked",
+    ).length,
+    expired: allStatusRequests.filter(
+      (request) => normalizedStatus(request) === "expired",
+    ).length,
   };
 
   return res.json({
     stats,
     requests: data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
   });
 };
 
@@ -299,6 +342,10 @@ exports.getMyDrivers = async (req, res) => {
       message: "Carrier profile not found",
     });
   }
+
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 6, 1), 50);
+  const skip = (page - 1) * limit;
 
   const requests = await AccessRequest.find({
     carrierProfile: carrierProfile._id,
@@ -320,7 +367,9 @@ exports.getMyDrivers = async (req, res) => {
     seenDrivers.add(driverId);
     data.push({
       requestId: request._id,
+      id: request._id,
       driverId: request.driver._id,
+      createdAt: request.createdAt,
       approvedAt: request.updatedAt || request.createdAt,
       expiresAt: request.expiresAt || null,
       requestedData: request.requestedData,
@@ -329,8 +378,17 @@ exports.getMyDrivers = async (req, res) => {
     });
   }
 
+  const total = data.length;
+  const paginatedData = data.slice(skip, skip + limit);
+
   return res.json({
-    count: data.length,
-    data,
+    count: paginatedData.length,
+    data: paginatedData,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
   });
 };

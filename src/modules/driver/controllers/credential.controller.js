@@ -87,10 +87,19 @@ exports.getCredentials = async (req, res) => {
       return res.status(404).json({ message: "Driver not found" });
     }
 
-    const credentials = await Credential.find({
+    const baseQuery = {
       driver: driverProfile._id,
       isActive: true,
-    }).sort({ createdAt: -1 });
+    };
+
+    const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 100);
+    const shouldPaginate = page > 0 && limit > 0;
+    const statusFilter = req.query.status && req.query.status !== "all"
+      ? req.query.status
+      : null;
+
+    const credentials = await Credential.find(baseQuery).sort({ createdAt: -1 });
 
     const updated = credentials.map((c) => {
       let status = c.status;
@@ -110,8 +119,40 @@ exports.getCredentials = async (req, res) => {
       };
     });
 
+    const filtered = statusFilter
+      ? updated.filter((c) => c.status === statusFilter)
+      : updated;
+
+    const counts = updated.reduce(
+      (acc, c) => {
+        acc.total += 1;
+        if (acc[c.status] !== undefined) acc[c.status] += 1;
+        return acc;
+      },
+      { total: 0, verified: 0, pending: 0, expired: 0, expiringSoon: 0 },
+    );
+
+    if (shouldPaginate) {
+      const start = (page - 1) * limit;
+      const paginated = filtered.slice(start, start + limit);
+
+      return res.json({
+        count: paginated.length,
+        total: filtered.length,
+        counts,
+        pagination: {
+          page,
+          limit,
+          total: filtered.length,
+          totalPages: Math.ceil(filtered.length / limit) || 1,
+        },
+        data: paginated,
+      });
+    }
+
     return res.json({
       count: updated.length,
+      counts,
       data: updated,
     });
   } catch (error) {

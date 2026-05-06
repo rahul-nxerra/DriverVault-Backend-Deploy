@@ -54,7 +54,6 @@ const calculateScores = (records = []) => {
 const getDriverPerformanceData = async (driverId) => {
   const records = await PerformanceRecord.find({
     driver: driverId,
-    isActive: true,
     status: "verified",
   }).sort({ date: 1 }); // ascending for history
 

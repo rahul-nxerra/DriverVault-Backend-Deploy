@@ -171,11 +171,30 @@ exports.getDriverAccessRequests = async (req, res) => {
       return res.status(404).json({ message: "Driver not found" });
     }
 
-    const requests = await AccessRequest.find({
+    const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 100);
+    const shouldPaginate = page > 0 && limit > 0;
+
+    const query = {
       driver: driver._id,
-    })
+    };
+
+    const total = await AccessRequest.countDocuments(query);
+
+    let requestQuery = AccessRequest.find(query)
       .populate("carrierProfile", "companyName")
       .sort({ createdAt: -1 });
+
+    if (shouldPaginate) {
+      requestQuery = requestQuery.skip((page - 1) * limit).limit(limit);
+    }
+
+    const requests = await requestQuery;
+    const allRequests = shouldPaginate
+      ? await AccessRequest.find(query)
+          .select("status expiresAt")
+          .sort({ createdAt: -1 })
+      : requests;
 
     const now = new Date();
 
@@ -202,18 +221,36 @@ exports.getDriverAccessRequests = async (req, res) => {
       };
     });
 
+    const statsSource = allRequests.map((r) => {
+      if (r.status === "approved" && r.expiresAt && r.expiresAt < now) {
+        return "expired";
+      }
+      return r.status;
+    });
+
     const stats = {
-      total: formatted.length,
-      pending: formatted.filter((r) => r.status === "pending").length,
-      approved: formatted.filter((r) => r.status === "approved").length,
-      revoked: formatted.filter((r) => r.status === "revoked").length,
-      expired: formatted.filter((r) => r.status === "expired").length,
+      total,
+      pending: statsSource.filter((status) => status === "pending").length,
+      approved: statsSource.filter((status) => status === "approved").length,
+      revoked: statsSource.filter((status) => status === "revoked").length,
+      expired: statsSource.filter((status) => status === "expired").length,
     };
 
-    return res.json({
+    const response = {
       stats,
       requests: formatted,
-    });
+    };
+
+    if (shouldPaginate) {
+      response.pagination = {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      };
+    }
+
+    return res.json(response);
   } catch (error) {
     return res.status(500).json({
       message: "Failed to fetch access requests",

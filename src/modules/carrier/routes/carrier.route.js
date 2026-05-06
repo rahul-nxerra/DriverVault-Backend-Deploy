@@ -14,7 +14,7 @@ const { getDashboard } = require("../controllers/carrier.controller");
 // ================= SUB ROUTES =================
 
 // Access request system
-router.use("/access-request", accessRequestRoutes);
+router.use("/access-requests", accessRequestRoutes);
 router.use("/analytics", analyticsRoutes);
 
 // Verified driver discovery for carriers

@@ -64,7 +64,6 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
     {
       $match: {
         driver: { $in: performanceDriverIds },
-        isActive: true,
         status: "verified",
       },
     },

@@ -28,10 +28,13 @@ exports.getPerformance = async (req, res) => {
       driver._id,
     );
 
+    const includeRecords = req.query.includeRecords !== "false";
+
     return res.json({
       scores,
       history,
-      records,
+      records: includeRecords ? records : [],
+      recordsCount: records.length,
     });
   } catch (error) {
     console.error("Get Performance Error:", error);
@@ -57,15 +60,42 @@ exports.getPerformanceRecords = async (req, res) => {
       });
     }
 
-    const records = await PerformanceRecord.find({
+    const page = Math.max(parseInt(req.query.page, 10) || 0, 0);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 100);
+    const shouldPaginate = page > 0 && limit > 0;
+
+    const query = {
       driver: driver._id,
       status: "verified",
-    }).sort({ date: -1 });
+    };
 
-    return res.json({
+    let recordsQuery = PerformanceRecord.find(query).sort({ date: -1 });
+
+    if (shouldPaginate) {
+      recordsQuery = recordsQuery.skip((page - 1) * limit).limit(limit);
+    }
+
+    const [records, total] = await Promise.all([
+      recordsQuery,
+      PerformanceRecord.countDocuments(query),
+    ]);
+
+    const response = {
       count: records.length,
+      total,
       data: records,
-    });
+    };
+
+    if (shouldPaginate) {
+      response.pagination = {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      };
+    }
+
+    return res.json(response);
   } catch (error) {
     console.error("Get Performance Records Error:", error);
 
