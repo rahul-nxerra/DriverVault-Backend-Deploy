@@ -14,8 +14,7 @@ const getAccessType = (allowedData) => {
 
   if (allowedData.cdl && !allowedData.performance) return "Credentials Only";
 
-  if (allowedData.performance && !allowedData.cdl)
-    return "Performance Records";
+  if (allowedData.performance && !allowedData.cdl) return "Performance Records";
 
   return "Partial Access";
 };
@@ -85,11 +84,19 @@ exports.handleAccessRequest = async (req, res) => {
 
       //  INTERSECTION LOGIC
       request.allowedData = {
-        personalInfo: canShare(request.requestedData, preferences, "personalInfo"),
+        personalInfo: canShare(
+          request.requestedData,
+          preferences,
+          "personalInfo",
+        ),
         cdl: canShare(request.requestedData, preferences, "cdl"),
         safety: canShare(request.requestedData, preferences, "safety"),
         employment: canShare(request.requestedData, preferences, "employment"),
-        performance: canShare(request.requestedData, preferences, "performance"),
+        performance: canShare(
+          request.requestedData,
+          preferences,
+          "performance",
+        ),
         medical: canShare(request.requestedData, preferences, "medical"),
         financial: canShare(request.requestedData, preferences, "financial"),
       };
@@ -219,7 +226,7 @@ exports.getAccessRequestById = async (req, res) => {
   try {
     const request = await AccessRequest.findById(req.params.id).populate(
       "carrierProfile",
-      "companyName"
+      "companyName",
     );
 
     if (!request) {
