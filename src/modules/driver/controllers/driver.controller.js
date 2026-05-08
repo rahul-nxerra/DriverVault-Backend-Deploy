@@ -6,11 +6,9 @@ const PerformanceRecord = require("../models/performanceRecord.model");
 const Carrier = require("../../carrier/models/carrier.model");
 const AccessRequest = require("../../common/models/accessRequest.model");
 const bcrypt = require("bcryptjs");
-const User = require("../../user/user.model"); 
+const User = require("../../user/user.model");
 
-const {
-  getDriverPerformanceData,
-} = require("../services/performance.service");
+const { getDriverPerformanceData } = require("../services/performance.service");
 
 // ================= PUBLIC PROFILE =================
 exports.getPublicDriverProfile = async (req, res) => {
@@ -162,7 +160,16 @@ exports.updateDriverProfile = async (req, res) => {
       await cloudinary.uploader.destroy(driver.profilePhotoId);
     }
 
-    driver.profilePhoto = req.file.path;
+    const optimizedUrl = cloudinary.url(req.file.filename, {
+      width: 300,
+      height: 300,
+      crop: "fill",
+      gravity: "face",
+      quality: "auto",
+      fetch_format: "auto",
+    });
+
+    driver.profilePhoto = optimizedUrl;
     driver.profilePhotoId = req.file.filename;
   }
 
@@ -187,7 +194,6 @@ exports.updateDriverProfile = async (req, res) => {
       bio: driver.bio,
       profilePhoto: driver.profilePhoto,
 
-      // ✅ NOW CORRECT
       employmentHistory,
     },
   });
@@ -243,8 +249,6 @@ exports.getDriverProfileById = async (req, res) => {
     });
   }
 };
-
-
 
 // ================= CHANGE PASSWORD =================
 exports.changePassword = async (req, res) => {

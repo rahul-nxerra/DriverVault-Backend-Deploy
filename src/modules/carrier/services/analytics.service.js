@@ -3,6 +3,7 @@ const PerformanceRecord = require("../../driver/models/performanceRecord.model")
 const Credential = require("../../driver/models/credential.model");
 
 const {
+  activePerformanceRecordFilter,
   calculateScores,
 } = require("../../driver/services/performance.service");
 
@@ -65,6 +66,7 @@ exports.getCarrierAnalyticsData = async (carrierProfileId) => {
       $match: {
         driver: { $in: performanceDriverIds },
         status: "verified",
+        ...activePerformanceRecordFilter,
       },
     },
     {

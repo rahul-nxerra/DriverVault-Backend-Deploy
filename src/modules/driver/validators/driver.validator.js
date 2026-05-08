@@ -20,12 +20,14 @@ exports.updateProfileSchema = Joi.object({
     .optional(),
 
   phone: Joi.string()
-    .pattern(/^[0-9]{10}$/)
-    .allow(null, "")
-    .optional()
-    .messages({
-      "string.pattern.base": "Phone must be exactly 10 digits",
-    }),
+  .pattern(
+    /^(\+1\s?)?(\([0-9]{3}\)|[0-9]{3})[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}$/
+  )
+  .allow(null, "")
+  .optional()
+  .messages({
+    "string.pattern.base": "Invalid US phone number format",
+  }),
 
   licenseType: Joi.string()
     .valid("cdl-a", "cdl-b", "non-cdl")

@@ -1,7 +1,10 @@
 const PerformanceRecord = require("../models/performanceRecord.model");
 const mongoose = require("mongoose");
 const { logAudit } = require("../../../utils/auditLogger");
-const { getDriverPerformanceData } = require("../services/performance.service");
+const {
+  activePerformanceRecordFilter,
+  getDriverPerformanceData,
+} = require("../services/performance.service");
 const Driver = require("../models/driver.model");
 
 // ================= HELPER =================
@@ -67,6 +70,7 @@ exports.getPerformanceRecords = async (req, res) => {
     const query = {
       driver: driver._id,
       status: "verified",
+      ...activePerformanceRecordFilter,
     };
 
     let recordsQuery = PerformanceRecord.find(query).sort({ date: -1 });

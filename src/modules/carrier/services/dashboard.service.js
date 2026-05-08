@@ -7,6 +7,7 @@ const { getCarrierAnalyticsData } = require("./analytics.service");
 const {
   getDriverPerformanceData,
 } = require("../../driver/services/performance.service");
+const { countCarrierSearchesToday } = require("./search.service");
 
 // ================= MAIN SERVICE =================
 
@@ -69,6 +70,8 @@ const getDashboardData = async (carrierId) => {
     carrierProfile: carrierId,
     status: "pending",
   });
+
+  const searchesToday = await countCarrierSearchesToday(carrierId);
 
   // ================= DRIVER DISTRIBUTION =================
   const drivers = await Driver.find({
@@ -249,7 +252,7 @@ const getDashboardData = async (carrierId) => {
     stats: {
       totalDrivers,
       verifiedProfiles: verifiedDrivers.length,
-      searchesToday: 12, // TODO: make dynamic
+      searchesToday,
       pendingRequests,
     },
 

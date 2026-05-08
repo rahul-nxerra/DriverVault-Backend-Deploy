@@ -7,6 +7,11 @@ const performanceRecordSchema = new mongoose.Schema({
     required: true,
   },
 
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+
   type: {
     type: String,
     required: true,

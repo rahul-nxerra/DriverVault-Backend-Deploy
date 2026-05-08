@@ -5,6 +5,7 @@ const Credential = require("../../driver/models/credential.model");
 const {
   getDriverPerformanceData,
 } = require("../../driver/services/performance.service");
+const { logCarrierSearch } = require("../services/search.service");
 
 const toDriverCard = async (driver, request = null) => {
   const performanceData = await getDriverPerformanceData(driver._id);
@@ -144,6 +145,14 @@ exports.getVerifiedDrivers = async (req, res) => {
 
   const trimmedSearch = String(search).trim();
   if (trimmedSearch) {
+    if (["1", "true"].includes(String(req.query.trackSearch))) {
+      await logCarrierSearch({
+        carrierProfileId: carrierProfile._id,
+        query: trimmedSearch,
+        source: req.searchSource || "driver_search",
+      });
+    }
+
     const regex = new RegExp(escapeRegex(trimmedSearch), "i");
     query.$or = [
       { firstName: regex },
@@ -213,6 +222,7 @@ exports.getVerifiedDrivers = async (req, res) => {
 };
 
 exports.searchDriversForAccessRequest = async (req, res) => {
+  req.searchSource = "access_request_search";
   req.query = {
     ...req.query,
     limit: req.query.limit || "8",

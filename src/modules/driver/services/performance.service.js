@@ -1,5 +1,9 @@
 const PerformanceRecord = require("../models/performanceRecord.model");
 
+const activePerformanceRecordFilter = {
+  isActive: { $ne: false },
+};
+
 // ================= TIME DECAY =================
 const getDecayWeight = (date) => {
   const now = new Date();
@@ -55,6 +59,7 @@ const getDriverPerformanceData = async (driverId) => {
   const records = await PerformanceRecord.find({
     driver: driverId,
     status: "verified",
+    ...activePerformanceRecordFilter,
   }).sort({ date: 1 }); // ascending for history
 
   const scores = calculateScores(records);
@@ -130,6 +135,7 @@ const getDriverPerformanceData = async (driverId) => {
 
 // ================= EXPORT =================
 module.exports = {
+  activePerformanceRecordFilter,
   calculateScores,
   getDecayWeight,
   getDriverPerformanceData,
