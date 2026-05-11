@@ -12,6 +12,7 @@ const {
 } = require("../validators/credential.validator");
 const { updateProfileSchema } = require("../validators/driver.validator");
 const validate = require("../../../middlewares/validate.middleware");
+const { searchLimiter, authLimiter } = require("../../../middlewares/rateLimit.middleware");
 
 // SUB ROUTES
 const performanceRoutes = require("./performance.routes");
@@ -65,12 +66,13 @@ router.put(
   "/change-password",
   protect,
   authorizeRoles("driver"),
+  authLimiter,
   asyncHandler(driverController.changePassword),
 );
 
 // ================= PUBLIC ROUTE =================
 
 // 🌐 Public driver profile (no auth)
-router.get("/public/:id", driverController.getPublicDriverProfile);
+router.get("/public/:id", searchLimiter, driverController.getPublicDriverProfile);
 
 module.exports = router;

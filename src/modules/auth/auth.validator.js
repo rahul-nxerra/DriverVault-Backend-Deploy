@@ -49,6 +49,7 @@ const registerSchema = Joi.object({
 
 // ================= LOGIN =================
 const loginSchema = Joi.object({
+  expectedRole: Joi.string().valid("driver", "carrier", "admin").required(),
   email: Joi.string().email().required(),
   password: Joi.string().required(),
 })

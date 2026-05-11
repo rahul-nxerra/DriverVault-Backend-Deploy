@@ -83,12 +83,19 @@ exports.register = async (req, res) => {
 // ================= LOGIN =================
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, expectedRole } = req.body;
 
     // ✅ Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ msg: "Invalid credentials" });
+    }
+
+    // ✅ Validate Role
+    if (user.role !== expectedRole) {
+      return res.status(403).json({
+        msg: `Access denied. You are registered as ${user.role}, but trying to login as ${expectedRole}.`
+      });
     }
 
     // ✅ Check password

@@ -9,6 +9,7 @@ const {
 const asyncHandler = require("express-async-handler");
 const { protect } = require("../../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../../middlewares/role.middleware");
+const { searchLimiter } = require("../../../middlewares/rateLimit.middleware");
 
 const {
   requestAccess,
@@ -23,6 +24,7 @@ router.get(
   "/drivers/search",
   protect,
   authorizeRoles("carrier"),
+  searchLimiter,
   asyncHandler(searchDriversForAccessRequest)
 );
 

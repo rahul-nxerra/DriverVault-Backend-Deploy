@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { protect } = require("../../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../../middlewares/role.middleware");
+const { analyticsLimiter } = require("../../../middlewares/rateLimit.middleware");
 const asyncHandler = require("express-async-handler");
 const accessRequestRoutes = require("./accessRequest.routes");
 const {
@@ -22,6 +23,7 @@ router.get(
   "/drivers",
   protect,
   authorizeRoles("carrier"),
+  analyticsLimiter,
   asyncHandler(getVerifiedDrivers),
 );
 
@@ -30,6 +32,7 @@ router.get(
   "/dashboard",
   protect,
   authorizeRoles("carrier"),
+  analyticsLimiter,
   asyncHandler(getDashboard)
 );
 // Drivers with active approved access for this carrier
