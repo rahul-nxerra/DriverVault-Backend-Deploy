@@ -1,18 +1,31 @@
 const rateLimit = require("express-rate-limit");
 
 /**
+ * 🔑 Key Generator for Authentication
+ * Shared between middleware and controller (for resets).
+ */
+const authKeyGenerator = (req) => {
+  // Composite key: IP + Lowercased Email
+  // This prevents shared network lockouts (e.g., Driver A doesn't block Driver B)
+  const email = req.body?.email?.toLowerCase() || "anonymous";
+  return `${req.ip}_${email}`;
+};
+
+/**
  * 🔒 STRICT: Authentication Rate Limiter
  * Used for login, registration, and future password resets.
- * Prevents brute-force attacks.
+ * Prevents brute-force attacks by using a composite key (IP + Email).
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per `window`
+  max: 5, // Limit each (IP + Email) pair to 5 requests per window
   message: {
     msg: "Too many login attempts. Please try again after 15 minutes.",
   },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Only count failed attempts (status >= 400)
+  keyGenerator: authKeyGenerator,
 });
 
 /**
@@ -61,6 +74,7 @@ const apiLimiter = rateLimit({
 
 module.exports = {
   authLimiter,
+  authKeyGenerator,
   searchLimiter,
   analyticsLimiter,
   apiLimiter,

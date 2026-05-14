@@ -3,6 +3,7 @@ const Driver = require("../driver/models/driver.model");
 const Carrier = require("../carrier/models/carrier.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { authLimiter, authKeyGenerator } = require("../../middlewares/rateLimit.middleware");
 
 // ================= REGISTER =================
 exports.register = async (req, res) => {
@@ -64,6 +65,10 @@ exports.register = async (req, res) => {
       });
     }
 
+    // ✅ Reset Rate Limit on success
+    const key = authKeyGenerator(req);
+    authLimiter.resetKey(key);
+
     return res.status(201).json({
       msg: "User registered successfully",
       user: {
@@ -121,6 +126,10 @@ exports.login = async (req, res) => {
     if (user.role === "carrier") {
       profile = await Carrier.findOne({ user: user._id });
     }
+
+    // ✅ Reset Rate Limit on success
+    const key = authKeyGenerator(req);
+    authLimiter.resetKey(key);
 
     return res.status(200).json({
       msg: "Login successful",
