@@ -70,7 +70,8 @@ exports.register = async (req, res) => {
     authLimiter.resetKey(key);
 
     return res.status(201).json({
-      msg: "User registered successfully",
+      success:true,
+      message: "User registered successfully",
       user: {
         id: user._id,
         email: user.email,
@@ -80,7 +81,8 @@ exports.register = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({
-      msg: error.message,
+      success:false,
+      message: error.message,
     });
   }
 };
@@ -109,23 +111,47 @@ exports.login = async (req, res) => {
       return res.status(400).json({ msg: "Invalid credentials" });
     }
 
-    // ✅ Generate token
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" },
-    );
 
     let profile = null;
 
     // ✅ Only ONE query based on role
     if (user.role === "driver") {
       profile = await Driver.findOne({ user: user._id });
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          msg: "Driver profile not found",
+        });
+      };
     }
 
     if (user.role === "carrier") {
       profile = await Carrier.findOne({ user: user._id });
+      if (!profile) {
+        return res.status(404).json({
+          success: false,
+          msg: "Driver profile not found",
+        });
+      }
     }
+
+    // ✅ Block suspended/deleted/pending users
+    if (
+      profile &&
+      ["suspend", "delete"].includes(profile.status)
+    ) {
+      return res.status(403).json({
+        success: false,
+        msg: `Your account is ${profile.status}`,
+      });
+    }
+
+    // ✅ Generate token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" },
+    );
 
     // ✅ Reset Rate Limit on success
     const key = authKeyGenerator(req);

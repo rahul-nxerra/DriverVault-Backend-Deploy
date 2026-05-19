@@ -60,11 +60,8 @@ exports.getPublicDriverProfile = async (req, res) => {
 
 // ================= DRIVER PRIVATE PROFILE =================
 exports.getDriverProfile = async (req, res) => {
-  const driver = await Driver.findOne({ user: req.user.id }).populate(
-    "user",
-    "email",
-  );
-
+  const driver = await Driver.findOne({ user: req.user.id }).populate("user", "email")
+  
   if (!driver) {
     res.status(404);
     throw new Error("Driver profile not found");
@@ -79,31 +76,24 @@ exports.getDriverProfile = async (req, res) => {
   const response = {
     id: driver._id,
     email: driver.user?.email || null,
-
     profilePhoto: driver.profilePhoto || null,
     firstName: driver.firstName,
     lastName: driver.lastName,
-
     phone: driver.phone || null,
-
     location: {
       city: driver.location?.city || null,
       state: driver.location?.state || null,
       zipCode: driver.location?.zipCode || null,
     },
-
     licenseType: driver.licenseType || null,
     experienceYears: driver.experienceYears || 0,
     availability: driver.availability || null,
     bio: driver.bio || null,
-
     employmentHistory,
-
     performance: {
       scores,
       history,
     },
-
     createdAt: driver.createdAt,
   };
 

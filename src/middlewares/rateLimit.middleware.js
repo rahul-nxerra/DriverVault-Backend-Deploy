@@ -1,5 +1,5 @@
 const rateLimit = require("express-rate-limit");
-
+const { ipKeyGenerator } = require("express-rate-limit");
 /**
  * 🔑 Key Generator for Authentication
  * Shared between middleware and controller (for resets).
@@ -8,7 +8,8 @@ const authKeyGenerator = (req) => {
   // Composite key: IP + Lowercased Email
   // This prevents shared network lockouts (e.g., Driver A doesn't block Driver B)
   const email = req.body?.email?.toLowerCase() || "anonymous";
-  return `${req.ip}_${email}`;
+    const safeIp = ipKeyGenerator(req.ip);
+  return `${safeIp}_${email}`;
 };
 
 /**

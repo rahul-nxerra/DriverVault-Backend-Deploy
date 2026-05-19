@@ -50,6 +50,11 @@ const driverSchema = new mongoose.Schema(
       state: String,
       zipCode: String,
     },
+    status:{
+      type: String,
+      enum: ["active", "pending", "delete", "suspend"],
+      default: "active",
+    }
 
     // // 🔴 RESTRICTED
     // employmentHistory: [employmentSchema],

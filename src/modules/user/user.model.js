@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema(
       enum: ["driver", "carrier", "admin"],
       required: true,
     },
+    status:{
+      type: String,
+      enum: ["active", "pending", "delete","suspend"],
+      default: "active",
+    }
   },
   { timestamps: true }
 );

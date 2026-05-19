@@ -20,6 +20,11 @@ const carrierSchema = new mongoose.Schema(
     isVerified: {
       type: Boolean,
       default: false
+    },
+    status:{
+      type: String,
+      enum: ["active", "pending", "delete", "suspend"],
+      default: "active",
     }
   },
   { timestamps: true }
