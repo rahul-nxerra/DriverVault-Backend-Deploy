@@ -1,5 +1,6 @@
 const AccessRequest = require("../../common/models/accessRequest.model");
 const Driver = require("../models/driver.model");
+const Carrier = require ("../../carrier/models/carrier.model")
 const ConsentPreferences = require("../models/consentPreferences.model");
 const { logAudit } = require("../../../utils/auditLogger");
 
@@ -47,103 +48,194 @@ exports.handleAccessRequest = async (req, res) => {
   try {
     const { action, notes } = req.body;
 
+    // VALID ACTIONS
     if (!["approve", "reject", "revoke"].includes(action)) {
-      return res.status(400).json({ message: "Invalid action" });
+      return res.status(400).json({
+        message: "Invalid action",
+      });
     }
 
     const request = await AccessRequest.findById(req.params.id);
+
     if (!request) {
-      return res.status(404).json({ message: "Request not found" });
-    }
-
-    const driver = await Driver.findOne({ user: req.user.id });
-    if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
-    }
-
-    if (request.driver.toString() !== driver._id.toString()) {
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-
-    // ================= APPROVE =================
-    if (action === "approve") {
-      request.status = "approved";
-      request.notes = notes;
-
-      request.expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
-
-      //  GET DRIVER PREFERENCES
-      const prefs = await ConsentPreferences.findOne({
-        driverId: driver._id,
-      });
-
-      const preferences = {
-        ...DEFAULT_CONSENT,
-        ...(prefs ? prefs.toObject() : {}),
-      };
-
-      //  INTERSECTION LOGIC
-      request.allowedData = {
-        personalInfo: canShare(
-          request.requestedData,
-          preferences,
-          "personalInfo",
-        ),
-        cdl: canShare(request.requestedData, preferences, "cdl"),
-        safety: canShare(request.requestedData, preferences, "safety"),
-        employment: canShare(request.requestedData, preferences, "employment"),
-        performance: canShare(
-          request.requestedData,
-          preferences,
-          "performance",
-        ),
-        medical: canShare(request.requestedData, preferences, "medical"),
-        financial: canShare(request.requestedData, preferences, "financial"),
-      };
-
-      await logAudit({
-        actorId: driver._id,
-        actorType: "driver",
-        action: "APPROVE_ACCESS",
-        resource: "access",
-        resourceId: request._id,
-        targetDriverId: driver._id,
-        req,
+      return res.status(404).json({
+        message: "Request not found",
       });
     }
 
-    // ================= REJECT =================
-    if (action === "reject") {
-      request.status = "rejected";
-      request.allowedData = { ...EMPTY_ALLOWED_DATA };
-      request.expiresAt = null;
-      request.notes = notes;
-
-      await logAudit({
-        actorId: driver._id,
-        actorType: "driver",
-        action: "REJECT_ACCESS",
-        resource: "access",
-        resourceId: request._id,
-        targetDriverId: driver._id,
-        req,
+    // =========================================================
+    // DRIVER ACTIONS (APPROVE / REJECT)
+    // =========================================================
+    if (["approve", "reject"].includes(action)) {
+      const driver = await Driver.findOne({
+        user: req.user.id,
       });
+
+      if (!driver) {
+        return res.status(404).json({
+          message: "Driver not found",
+        });
+      }
+
+      // ONLY REQUEST OWNER DRIVER CAN HANDLE
+      if (request.driver.toString() !== driver._id.toString()) {
+        return res.status(403).json({
+          message: "Unauthorized",
+        });
+      }
+
+      // ================= APPROVE =================
+      if (action === "approve") {
+        request.status = "approved";
+        request.notes = notes;
+
+        request.expiresAt = new Date(
+          Date.now() + 72 * 60 * 60 * 1000
+        );
+
+        // DRIVER PREFERENCES
+        const prefs = await ConsentPreferences.findOne({
+          driverId: driver._id,
+        });
+
+        const preferences = {
+          ...DEFAULT_CONSENT,
+          ...(prefs ? prefs.toObject() : {}),
+        };
+
+        // INTERSECTION LOGIC
+        request.allowedData = {
+          personalInfo: canShare(
+            request.requestedData,
+            preferences,
+            "personalInfo"
+          ),
+
+          cdl: canShare(
+            request.requestedData,
+            preferences,
+            "cdl"
+          ),
+
+          safety: canShare(
+            request.requestedData,
+            preferences,
+            "safety"
+          ),
+
+          employment: canShare(
+            request.requestedData,
+            preferences,
+            "employment"
+          ),
+
+          performance: canShare(
+            request.requestedData,
+            preferences,
+            "performance"
+          ),
+
+          medical: canShare(
+            request.requestedData,
+            preferences,
+            "medical"
+          ),
+
+          financial: canShare(
+            request.requestedData,
+            preferences,
+            "financial"
+          ),
+        };
+
+        await logAudit({
+          performedBy: driver._id,
+          role: "driver",
+          action: "APPROVE_ACCESS",
+          resource: "access",
+          resourceId: request._id,
+          targetUser: driver._id,
+          category: "Access",
+          message: "Driver approved access request",
+          metadata: {
+            requestStatus: "approved",
+          },
+          req,
+        });
+      }
+
+      // ================= REJECT =================
+      if (action === "reject") {
+        request.status = "rejected";
+        request.allowedData = {
+          ...EMPTY_ALLOWED_DATA,
+        };
+
+        request.expiresAt = null;
+        request.notes = notes;
+
+        await logAudit({
+          performedBy: driver._id,
+          role: "driver",
+          action: "REJECT_ACCESS",
+          resource: "access",
+          resourceId: request._id,
+          targetUser: driver._id,
+          category: "Access",
+          message: "Driver rejected access request",
+          metadata: {
+            requestStatus: "rejected",
+          },
+          req,
+        });
+      }
     }
 
-    // ================= REVOKE =================
+    // =========================================================
+    // CARRIER ACTION (REVOKE)
+    // =========================================================
     if (action === "revoke") {
+      const carrier = await Carrier.findOne({
+        user: req.user.id,
+      });
+
+      if (!carrier) {
+        return res.status(404).json({
+          message: "Carrier not found",
+        });
+      }
+
+      // ONLY REQUEST OWNER CARRIER CAN REVOKE
+      if (
+        request.carrierProfile.toString() !==
+        carrier._id.toString()
+      ) {
+        return res.status(403).json({
+          message: "Unauthorized",
+        });
+      }
+
       request.status = "revoked";
-      request.allowedData = { ...EMPTY_ALLOWED_DATA };
+
+      request.allowedData = {
+        ...EMPTY_ALLOWED_DATA,
+      };
+
       request.expiresAt = null;
       request.notes = notes;
 
       await logAudit({
-        actorId: driver._id,
-        actorType: "driver",
+        performedBy: carrier._id,
+        role: "carrier",
         action: "REVOKE_ACCESS",
         resource: "access",
         resourceId: request._id,
-        targetDriverId: driver._id,
+        targetUser: request.driver,
+        category: "Access",
+        message: "Carrier revoked access request",
+        metadata: {
+          requestStatus: "revoked",
+        },
         req,
       });
     }
@@ -151,13 +243,19 @@ exports.handleAccessRequest = async (req, res) => {
     await request.save();
 
     return res.json({
-      message: `Request ${action === "reject" ? "rejected" : `${action}ed`}`,
+      success: true,
+      message: `Request ${action}ed successfully`,
       data: request,
     });
+
   } catch (error) {
     console.error("Access request update error:", error);
+
     return res.status(500).json({
-      message: error.message || "Failed to process access request",
+      success: false,
+      message:
+        error.message ||
+        "Failed to process access request",
     });
   }
 };

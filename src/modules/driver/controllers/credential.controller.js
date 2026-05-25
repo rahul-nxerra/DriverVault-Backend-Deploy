@@ -60,6 +60,32 @@ exports.createCredential = async (req, res) => {
         isActive: false,
       });
     }
+    await logAudit({
+      performedBy: req.user.id,
+      role: req.user.role,
+
+      action: "ADD_CREDENTIAL",
+
+      resource: "credential",
+
+      resourceId: newCredential._id,
+
+      targetUser: req.user.id,
+
+      category: "Data",
+
+      message: `${driverProfile.firstName + " " + driverProfile.lastName } uploaded a credential`,
+
+      metadata: { 
+        credentialId: newCredential._id,
+        credentialType: type,
+        title,
+        renewed: !!renewedFrom,
+        driverProfileId: driverProfile._id,
+      },
+
+      req,
+    });
 
     return res.status(201).json({
       message: "Credential uploaded successfully",
@@ -246,14 +272,29 @@ exports.getDriverCredentialsById = async (req, res) => {
     });
 
     await logAudit({
-      actorId: req.carrier?._id || req.user.id,
-      actorType: req.user.role,
+      performedBy: req.user._id,
+      role: req.user.role,
+
       action: "VIEW_CREDENTIAL",
+
       resource: "credential",
+
       resourceId: driver._id,
-      targetDriverId: driver._id,
+
+      targetUser: driver.user || driver._id,
+
+      category: "Access",
+
+      message: `${req.user.role} viewed driver credentials`,
+
+      metadata: {
+        credentialCount: credentials.length,
+        driverId: driver._id,
+      },
+
       req,
     });
+
 
     return res.status(200).json({
       count: credentials.length,

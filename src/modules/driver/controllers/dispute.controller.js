@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const Dispute = require("../../common/models/dispute.model");
 const Driver = require("../models/driver.model");
-
+const {logAudit} = require("../../../utils/auditLogger")
 // ================= CONSTANTS =================
 
 // ✅ allowed categories
@@ -144,6 +144,32 @@ exports.createDispute = async (req, res) => {
       evidenceUrl,
       evidenceId,
     });
+
+    await logAudit({
+          performedBy: req.user.id,
+          role: req.user.role,
+    
+          action: "ADD_DISPUTE",
+    
+          resource: "dispute",
+    
+          resourceId: dispute._id,
+    
+          targetUser: req.user.id,
+    
+          category: "Data",
+    
+          message: `${driver.firstName + " " + driver.lastName } uploaded a credential`,
+    
+          metadata: { 
+            disputeId: dispute._id,
+            title,
+            driverProfileId: driver._id,
+          },
+    
+          req,
+        });
+    
 
     return res.status(201).json({
       message: "Dispute submitted successfully",

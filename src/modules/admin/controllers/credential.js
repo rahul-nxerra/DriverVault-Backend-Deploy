@@ -1,6 +1,9 @@
 const Credential = require("../../driver/models/credential.model");
-const { getCredentialById, updateCredentialStatus } = require("../services/credential");
-
+const {
+  getCredentialById,
+  updateCredentialStatus,
+} = require("../services/credential");
+const { logAudit } = require("../../../utils/auditLogger");
 exports.getCredential = async (req, res) => {
   try {
     // ✅ Auth check
@@ -16,13 +19,12 @@ exports.getCredential = async (req, res) => {
 
     const limit = Math.min(
       Math.max(parseInt(req.query.limit, 10) || 10, 1),
-      100
+      100,
     );
-
 
     // ✅ Base query for admin
     const baseQuery = {
-        isActive: true,
+      isActive: true,
     };
 
     // ✅ Fetch credentials
@@ -40,8 +42,7 @@ exports.getCredential = async (req, res) => {
       // Auto-expiry handling
       if (c.status === "verified" && c.expiryDate) {
         const diffDays =
-          (new Date(c.expiryDate) - new Date()) /
-          (1000 * 60 * 60 * 24);
+          (new Date(c.expiryDate) - new Date()) / (1000 * 60 * 60 * 24);
 
         if (diffDays < 0) {
           status = "expired";
@@ -85,27 +86,62 @@ exports.getCredential = async (req, res) => {
   }
 };
 
-exports.updateCredentialStatus = async (req, res) =>{
+exports.updateCredentialStatus = async (req, res) => {
   try {
-    const {id} = req.params
-    const {status} = req.body
-    const credential = await getCredentialById(id)
-    if(!credential){
+    const { id } = req.params;
+    const { status } = req.body;
+    const credential = await getCredentialById(id);
+    if (!credential) {
       return res.status(404).json({
-        success:false,
-        message:"Credential Not Found"
-      })  
+        success: false,
+        message: "Credential Not Found",
+      });
     }
-    await updateCredentialStatus(id, status)
+    await updateCredentialStatus(id, status);
+
+    let action = "";
+    if (status === "verified") {
+      action = "VERIFY_CREDENTIAL";
+    }
+
+    if (status === "rejected") {
+      action = "REJECT_CREDENTIAL";
+    }
+
+    await logAudit({
+      performedBy: req.user.id,
+      role: req.user.role,
+
+      action,
+
+      resource: "credential",
+
+      resourceId: credential._id,
+
+      targetUser: credential.driver.user,
+
+      category: "Data",
+
+      message: `${status} Credential By Admin`,
+
+      metadata: {
+        credentialId: credential._id,
+        title: credential.title,
+        driverProfileId: credential.driver._id,
+      },
+
+      req,
+    });
+
     return res.status(200).json({
-        success:true,
-        message:`Credential ${status} Successfully`
-      })
+      success: true,
+      message: `Credential ${status} Successfully`,
+    });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     return res.status(500).json({
-        success:false,
-        message:"Internal Server Error"
-      })
+      success: false,
+      message: "Internal Server Error",
+    });
   }
-}
+};

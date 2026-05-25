@@ -7,9 +7,8 @@ const Carrier = require("../../carrier/models/carrier.model");
 const AccessRequest = require("../../common/models/accessRequest.model");
 const bcrypt = require("bcryptjs");
 const User = require("../../user/user.model");
-
 const { getDriverPerformanceData } = require("../services/performance.service");
-
+const  AuditLog  = require("../../common/models/auditLog.model");
 // ================= PUBLIC PROFILE =================
 exports.getPublicDriverProfile = async (req, res) => {
   try {
@@ -60,8 +59,11 @@ exports.getPublicDriverProfile = async (req, res) => {
 
 // ================= DRIVER PRIVATE PROFILE =================
 exports.getDriverProfile = async (req, res) => {
-  const driver = await Driver.findOne({ user: req.user.id }).populate("user", "email")
-  
+  const driver = await Driver.findOne({ user: req.user.id }).populate(
+    "user",
+    "email",
+  );
+
   if (!driver) {
     res.status(404);
     throw new Error("Driver profile not found");
@@ -75,6 +77,7 @@ exports.getDriverProfile = async (req, res) => {
 
   const response = {
     id: driver._id,
+    user: driver.user?._id,
     email: driver.user?.email || null,
     profilePhoto: driver.profilePhoto || null,
     firstName: driver.firstName,
@@ -289,6 +292,35 @@ exports.changePassword = async (req, res) => {
     console.error("CHANGE PASSWORD ERROR:", error);
     return res.status(500).json({
       message: "Failed to change password",
+    });
+  }
+};
+
+exports.getDriverActivity = async (req, res) => {
+  try {
+    const  id  = req.user.id;
+
+    const logs = await AuditLog.find({
+      $or: [{ performedBy: id }, { targetUser: id }],
+    })
+      .populate({
+        path: "performedBy",
+        select: "email role",
+      })
+
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    return res.status(200).json({
+      success: true,
+      message: "Fetch All Activity successfully",
+      data: logs,
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      message: "Failed to fetch activity logs",
     });
   }
 };

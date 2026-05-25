@@ -9,6 +9,7 @@ const {
 } = require("../services/users");
 const User = require("../../user/user.model");
 const bcrypt = require("bcrypt");
+const {logAudit } = require("../../../utils/auditLogger")
 
 exports.getUser = async (req, res) => {
   try {
@@ -97,14 +98,34 @@ exports.createUserByAdmin = async (req, res) => {
       };
       profile = await createCarrierProfile(carrierData);
     }
+    await logAudit({
+      performedBy: req.user.id,
+      role: req.user.role,
 
+      action:"CREATE",
+
+      resource: "user",
+
+      resourceId: user._id,
+
+      targetUser: user._id,
+
+      category: "Admin",
+
+      message: `User Create By Admin`,
+
+      metadata: {
+        userId: user._id,
+      },
+
+      req,
+    });
     return res.status(200).json({
       success: true,
       message: "User registered successfully",
     });
   } catch (error) {
     console.log(error);
-
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",
@@ -127,6 +148,34 @@ exports.updateUserByAdmin = async (req, res) => {
     }
 
     await updateUserByAdmin(user, id, status);
+
+    if (status === "suspend") {
+      await logAudit({
+        performedBy: req.user.id,
+        role: req.user.role,
+  
+        action:"SUSPENDED",
+  
+        resource: "user",
+  
+        resourceId: user._id,
+  
+        targetUser: user._id,
+  
+        category: "Admin",
+  
+        message: `${status} User By Admin`,
+  
+        metadata: {
+          userId: user._id,
+        },
+  
+        req,
+      });
+    }
+    
+    
+        
 
     res.status(200).json({
       success: true,

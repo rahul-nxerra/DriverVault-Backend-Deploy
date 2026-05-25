@@ -1,7 +1,7 @@
 const Credential = require("../../driver/models/credential.model");
 
 exports.getCredentialById = async (id) => {
-  return await Credential.findById({ _id: id });
+  return await Credential.findById({ _id: id }).populate("driver");
 };
 
 exports.updateCredentialStatus = async (id, status) => {

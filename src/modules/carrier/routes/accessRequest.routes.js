@@ -5,11 +5,11 @@ const validate = require("../../../middlewares/validate.middleware");
 const {
   requestAccessSchema,
 } = require("../../common/validators/accessRequest.validator");
-
 const asyncHandler = require("express-async-handler");
 const { protect } = require("../../../middlewares/auth.middleware");
 const { authorizeRoles } = require("../../../middlewares/role.middleware");
 const { searchLimiter } = require("../../../middlewares/rateLimit.middleware");
+const accessController = require("../../driver/controllers/accessRequest.controller");
 
 const {
   requestAccess,
@@ -43,7 +43,20 @@ router.post(
   authorizeRoles("carrier"),
   validate(requestAccessSchema),
   asyncHandler(requestAccess)
-  
 );
 
+router.post(
+  "/",
+  protect,
+  authorizeRoles("carrier"),
+  validate(requestAccessSchema),
+  asyncHandler(requestAccess)
+);
+
+router.patch(
+  "/revoke/:id",
+  protect,
+  authorizeRoles("carrier"),
+  asyncHandler(accessController.handleAccessRequest)
+)
 module.exports = router;

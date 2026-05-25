@@ -11,7 +11,7 @@ const {
 } = require("../controllers/accessRequest.controller");
 
 const analyticsRoutes = require("./analytics.routes");
-const { getDashboard } = require("../controllers/carrier.controller");
+const { getDashboard, getCarrierActivity } = require("../controllers/carrier.controller");
 // ================= SUB ROUTES =================
 
 // Access request system
@@ -43,6 +43,12 @@ router.get(
   asyncHandler(getMyDrivers),
 );
 
+router.get(
+  "/activity",
+  protect,
+  authorizeRoles("carrier"),
+  asyncHandler(getCarrierActivity),
+);
 // ================= OPTIONAL FUTURE =================
 
 // Example: carrier profile

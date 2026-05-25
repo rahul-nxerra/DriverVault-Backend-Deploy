@@ -146,7 +146,7 @@ const getDashboardData = async (carrierId) => {
   const recentRequests = await AccessRequest.find({
     carrierProfile: carrierId,
   })
-    .populate("driver", "firstName lastName fullName")
+    .populate("driver", "firstName lastName")
     .sort({ updatedAt: -1 })
     .limit(5);
 

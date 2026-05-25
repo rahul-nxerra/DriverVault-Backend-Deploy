@@ -70,6 +70,14 @@ router.put(
   asyncHandler(driverController.changePassword),
 );
 
+router.get(
+  "/activity",
+  protect,
+  authorizeRoles("driver"),
+  authLimiter,
+  asyncHandler(driverController.getDriverActivity),
+);
+
 // ================= PUBLIC ROUTE =================
 
 // 🌐 Public driver profile (no auth)

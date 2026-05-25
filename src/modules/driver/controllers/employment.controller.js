@@ -244,14 +244,29 @@ exports.getDriverEmploymentById = async (req, res) => {
     }).sort({ startDate: -1 });
 
     await logAudit({
-      actorId: req.carrier?._id || req.user.id,
-      actorType: req.user.role,
+      performedBy: req.user._id,
+
+      role: req.user.role,
+
       action: "VIEW_EMPLOYMENT",
+
       resource: "employment",
+
       resourceId: driver._id,
-      targetDriverId: driver._id,
+
+      targetUser: driver.user || driver._id,
+
+      category: "Access",
+
+      message: `${req.user.role} viewed driver employment history`,
+
+      metadata: {
+        employmentCount: employment.length,
+        driverId: driver._id,
+      },
       req,
     });
+
 
     return res.status(200).json({
       count: employment.length,

@@ -6,31 +6,70 @@ const {
   getDriverPerformanceData,
 } = require("../../driver/services/performance.service");
 const { logCarrierSearch } = require("../services/search.service");
+const { logAudit } = require("../../../utils/auditLogger");
 
 const toDriverCard = async (driver, request = null) => {
   const performanceData = await getDriverPerformanceData(driver._id);
+
   const scores = performanceData?.scores || {};
 
   return {
+    // ================= DRIVER INFO =================
     _id: driver._id,
+
     name: `${driver.firstName} ${driver.lastName}`,
+
+    firstName: driver.firstName || null,
+
+    lastName: driver.lastName || null,
+
+    email: driver.email || null,
+
+    phone: driver.phone || null,
+
+    profileImage: driver.profileImage || null,
+
     type: driver.licenseType,
+
+    availability: driver.availability || null,
+
+    available: driver.availability === "available",
+
+    experienceYears: driver.experienceYears || 0,
+
+    bio: driver.bio || null,
+
+    createdAt: driver.createdAt || null,
+
+    // ================= LOCATION =================
     location: {
       city: driver.location?.city || null,
       state: driver.location?.state || null,
     },
-    available: driver.availability === "available",
-    experienceYears: driver.experienceYears || 0,
-    bio: driver.bio || null,
+
+    // ================= PERFORMANCE =================
     safetyScore: scores.safety || 0,
+
     reliabilityScore: scores.reliability || 0,
+
     trainingScore: scores.training || 0,
+
     overallScore: scores.overall || 0,
+
+    // ================= ACCESS REQUEST =================
+    requestId: request?._id || null,
+
     requestStatus: request?.status || null,
+
     accessType: request?.accessType || null,
-    requestedData: request?.requestedData || null,
-    allowedData: request?.allowedData || null,
+
+    requestedData: request?.requestedData || {},
+
+    allowedData: request?.allowedData || {},
+
     expiresAt: request?.expiresAt || null,
+
+    requestedAt: request?.createdAt || null,
   };
 };
 
@@ -74,11 +113,10 @@ exports.requestAccess = async (req, res) => {
     status: "approved",
     $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
   }).sort({ createdAt: -1 });
-
+  
   if (activeApproved) {
-    return res.status(200).json({
+    return res.status(400).json({
       message: "Access already approved",
-      data: activeApproved,
     });
   }
 
@@ -102,123 +140,339 @@ exports.requestAccess = async (req, res) => {
     reason,
   });
 
+  await logAudit({
+    performedBy: req.user.id,
+    role: req.user.role,
+    action: "SEND_ACCESS",
+    resource: "accessRequest",
+    resourceId: request._id,
+    targetUser: driver._id,
+    category: "Access",
+    message: "Access Request Send",
+    metadata: {
+      accessTypeId: request._id,
+      accessType: accessType,
+    },
+    req,
+  });
+
   res.status(201).json({
     message: "Access request sent",
     data: request,
   });
 };
 
+// exports.getVerifiedDrivers = async (req, res) => {
+//   const carrierProfile = await Carrier.findOne({
+//     user: req.user.id,
+//   });
+
+//   if (!carrierProfile) {
+//     return res.status(404).json({
+//       message: "Carrier profile not found",
+//     });
+//   }
+
+//   // ================= QUERY PARAMS =================
+//   const {
+//     search = "",
+//     licenseType = "all",
+//     availability = "all",
+//     minExperience = "0",
+//     minSafety = "0",
+//   } = req.query;
+
+//   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+//   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+//   const skip = (page - 1) * limit;
+
+//   // ================= VERIFIED DRIVERS =================
+//   const verifiedDriverIds = await Credential.distinct("driver", {
+//     status: "verified",
+//     isActive: true,
+//   });
+
+//   // ================= BUILD QUERY =================
+//   const query = {
+//     _id: { $in: verifiedDriverIds },
+//   };
+
+//   const trimmedSearch = String(search).trim();
+//   if (trimmedSearch) {
+//     if (["1", "true"].includes(String(req.query.trackSearch))) {
+//       await logCarrierSearch({
+//         carrierProfileId: carrierProfile._id,
+//         query: trimmedSearch,
+//         source: req.searchSource || "driver_search",
+//       });
+//     }
+
+//     const regex = new RegExp(escapeRegex(trimmedSearch), "i");
+//     query.$or = [
+//       { firstName: regex },
+//       { lastName: regex },
+//       { "location.city": regex },
+//       { "location.state": regex },
+//     ];
+//   }
+
+//   if (licenseType && licenseType !== "all") {
+//     query.licenseType = licenseType;
+//   }
+
+//   if (availability && availability !== "all") {
+//     query.availability = availability;
+//   }
+
+//   const minExperienceNumber = Number(minExperience);
+//   if (!Number.isNaN(minExperienceNumber) && minExperienceNumber > 0) {
+//     query.experienceYears = { $gte: minExperienceNumber };
+//   }
+
+//   // ================= FETCH DATA =================
+//   const drivers = await Driver.find(query).sort({ createdAt: -1 });
+
+//   // ================= ACCESS REQUEST STATUS =================
+//   const requests = await AccessRequest.find({
+//     carrierProfile: carrierProfile._id,
+//     driver: { $in: drivers.map((d) => d._id) },
+//     //  status: "approved",
+//     status: { $in: ["revoked", "pending"] },
+//   }).sort({ createdAt: -1 });
+
+//   const latestRequestByDriver = new Map();
+//   requests.forEach((request) => {
+//     const key = request.driver.toString();
+//     const current = latestRequestByDriver.get(key);
+
+//     if (!current || (!isActiveApproved(current) && isActiveApproved(request))) {
+//       latestRequestByDriver.set(key, request);
+//     }
+//   });
+
+//   // ================= RESPONSE =================
+//   const data = await Promise.all(
+//     drivers.map((driver) =>
+//       toDriverCard(driver, latestRequestByDriver.get(driver._id.toString())),
+//     ),
+//   );
+
+//   const minSafetyNumber = Number(minSafety);
+//   const filteredData =
+//     !Number.isNaN(minSafetyNumber) && minSafetyNumber > 0
+//       ? data.filter((driver) => (driver.safetyScore || 0) >= minSafetyNumber)
+//       : data;
+//   const total = filteredData.length;
+//   const paginatedData = filteredData.slice(skip, skip + limit);
+
+//   return res.status(200).json({
+//     success:true,
+//     message:"Fetch All Driver Data",
+//     count: paginatedData.length,
+//     data: paginatedData,
+//     pagination: {
+//       page,
+//       limit,
+//       total,
+//       totalPages: Math.ceil(total / limit) || 1,
+//     },
+//   });
+// };
+
+
 exports.getVerifiedDrivers = async (req, res) => {
-  const carrierProfile = await Carrier.findOne({
-    user: req.user.id,
-  });
-
-  if (!carrierProfile) {
-    return res.status(404).json({
-      message: "Carrier profile not found",
+  try {
+    // ================= CARRIER PROFILE =================
+    const carrierProfile = await Carrier.findOne({
+      user: req.user.id,
     });
-  }
 
-  // ================= QUERY PARAMS =================
-  const {
-    search = "",
-    licenseType = "all",
-    availability = "all",
-    minExperience = "0",
-    minSafety = "0",
-  } = req.query;
-
-  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
-  const skip = (page - 1) * limit;
-
-  // ================= VERIFIED DRIVERS =================
-  const verifiedDriverIds = await Credential.distinct("driver", {
-    status: "verified",
-    isActive: true,
-  });
-
-  // ================= BUILD QUERY =================
-  const query = {
-    _id: { $in: verifiedDriverIds },
-  };
-
-  const trimmedSearch = String(search).trim();
-  if (trimmedSearch) {
-    if (["1", "true"].includes(String(req.query.trackSearch))) {
-      await logCarrierSearch({
-        carrierProfileId: carrierProfile._id,
-        query: trimmedSearch,
-        source: req.searchSource || "driver_search",
+    if (!carrierProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Carrier profile not found",
       });
     }
 
-    const regex = new RegExp(escapeRegex(trimmedSearch), "i");
-    query.$or = [
-      { firstName: regex },
-      { lastName: regex },
-      { "location.city": regex },
-      { "location.state": regex },
-    ];
-  }
+    // ================= QUERY PARAMS =================
+    const {
+      search = "",
+      licenseType = "all",
+      availability = "all",
+      minExperience = "0",
+      minSafety = "0",
+    } = req.query;
 
-  if (licenseType && licenseType !== "all") {
-    query.licenseType = licenseType;
-  }
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
 
-  if (availability && availability !== "all") {
-    query.availability = availability;
-  }
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit, 10) || 10, 1),
+      50,
+    );
 
-  const minExperienceNumber = Number(minExperience);
-  if (!Number.isNaN(minExperienceNumber) && minExperienceNumber > 0) {
-    query.experienceYears = { $gte: minExperienceNumber };
-  }
+    const skip = (page - 1) * limit;
 
-  // ================= FETCH DATA =================
-  const drivers = await Driver.find(query).sort({ createdAt: -1 });
+    // ================= VERIFIED DRIVER IDS =================
+    const verifiedDriverIds = await Credential.distinct("driver", {
+      status: "verified",
+      isActive: true,
+    });
 
-  // ================= ACCESS REQUEST STATUS =================
-  const requests = await AccessRequest.find({
-    carrierProfile: carrierProfile._id,
-    driver: { $in: drivers.map((d) => d._id) },
-  }).sort({ createdAt: -1 });
+    // ================= REMOVE APPROVED DRIVERS =================
+    const approvedRequests = await AccessRequest.find({
+      carrierProfile: carrierProfile._id,
+      status: "approved",
+      $or: [
+        { expiresAt: null },
+        { expiresAt: { $gt: new Date() } },
+      ],
+    }).select("driver");
 
-  const latestRequestByDriver = new Map();
-  requests.forEach((request) => {
-    const key = request.driver.toString();
-    const current = latestRequestByDriver.get(key);
+    const approvedDriverIds = approvedRequests.map((r) =>
+      r.driver.toString(),
+    );
 
-    if (!current || (!isActiveApproved(current) && isActiveApproved(request))) {
-      latestRequestByDriver.set(key, request);
+    // ================= DRIVER QUERY =================
+    const query = {
+      _id: {
+        $in: verifiedDriverIds,
+        $nin: approvedDriverIds,
+      },
+    };
+
+    // ================= SEARCH =================
+    const trimmedSearch = String(search).trim();
+
+    if (trimmedSearch) {
+      if (["1", "true"].includes(String(req.query.trackSearch))) {
+        await logCarrierSearch({
+          carrierProfileId: carrierProfile._id,
+          query: trimmedSearch,
+          source: req.searchSource || "driver_search",
+        });
+      }
+
+      const regex = new RegExp(
+        escapeRegex(trimmedSearch),
+        "i",
+      );
+
+      query.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { "location.city": regex },
+        { "location.state": regex },
+      ];
     }
-  });
 
-  // ================= RESPONSE =================
-  const data = await Promise.all(
-    drivers.map((driver) =>
-      toDriverCard(driver, latestRequestByDriver.get(driver._id.toString())),
-    ),
-  );
+    // ================= LICENSE FILTER =================
+    if (licenseType && licenseType !== "all") {
+      query.licenseType = licenseType;
+    }
 
-  const minSafetyNumber = Number(minSafety);
-  const filteredData =
-    !Number.isNaN(minSafetyNumber) && minSafetyNumber > 0
-      ? data.filter((driver) => (driver.safetyScore || 0) >= minSafetyNumber)
-      : data;
-  const total = filteredData.length;
-  const paginatedData = filteredData.slice(skip, skip + limit);
+    // ================= AVAILABILITY FILTER =================
+    if (availability && availability !== "all") {
+      query.availability = availability;
+    }
 
-  return res.json({
-    count: paginatedData.length,
-    data: paginatedData,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit) || 1,
-    },
-  });
+    // ================= EXPERIENCE FILTER =================
+    const minExperienceNumber = Number(minExperience);
+
+    if (
+      !Number.isNaN(minExperienceNumber) &&
+      minExperienceNumber > 0
+    ) {
+      query.experienceYears = {
+        $gte: minExperienceNumber,
+      };
+    }
+
+    // ================= FETCH DRIVERS =================
+    const drivers = await Driver.find(query).sort({
+      createdAt: -1,
+    });
+
+    // ================= ACCESS REQUESTS =================
+    const requests = await AccessRequest.find({
+      carrierProfile: carrierProfile._id,
+      driver: {
+        $in: drivers.map((d) => d._id),
+      },
+      status: {
+        $in: ["pending", "revoked", "rejected"],
+      },
+    }).sort({
+      createdAt: -1,
+    });
+
+    // ================= LATEST REQUEST MAP =================
+    const latestRequestByDriver = new Map();
+
+    requests.forEach((request) => {
+      const key = request.driver.toString();
+
+      // Since sorted newest first,
+      // first request is latest request
+      if (!latestRequestByDriver.has(key)) {
+        latestRequestByDriver.set(key, request);
+      }
+    });
+
+    // ================= FORMAT RESPONSE =================
+    const data = await Promise.all(
+      drivers.map((driver) =>
+        toDriverCard(
+          driver,
+          latestRequestByDriver.get(driver._id.toString())
+        ),
+      ),
+    );
+    // ================= SAFETY FILTER =================
+    const minSafetyNumber = Number(minSafety);
+
+    const filteredData =
+      !Number.isNaN(minSafetyNumber) &&
+      minSafetyNumber > 0
+        ? data.filter(
+            (driver) =>
+              (driver.safetyScore || 0) >=
+              minSafetyNumber,
+          )
+        : data;
+
+    // ================= PAGINATION =================
+    const total = filteredData.length;
+
+    const paginatedData = filteredData.slice(
+      skip,
+      skip + limit,
+    );
+
+    // ================= RESPONSE =================
+    return res.status(200).json({
+      success: true,
+
+      message: "Fetch All Driver Data",
+
+      count: paginatedData.length,
+
+      data: paginatedData,
+
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    });
+  } catch (error) {
+    console.error("Get Verified Drivers Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
 };
 
 exports.searchDriversForAccessRequest = async (req, res) => {
@@ -252,16 +506,15 @@ exports.getCarrierAccessRequests = async (req, res) => {
 
   const [requests, total] = await Promise.all([
     AccessRequest.find(query)
-    .populate("driver")
+      .populate("driver")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
     AccessRequest.countDocuments(query),
   ]);
 
-  const allStatusRequests = await AccessRequest.find(query).select(
-    "status expiresAt",
-  );
+  const allStatusRequests =
+    await AccessRequest.find(query).select("status expiresAt");
 
   const now = new Date();
 
@@ -343,7 +596,8 @@ exports.getCarrierAccessRequests = async (req, res) => {
 };
 
 exports.getMyDrivers = async (req, res) => {
-  const carrierProfile = await Carrier.findOne({
+  try{
+     const carrierProfile = await Carrier.findOne({
     user: req.user.id,
   });
 
@@ -391,7 +645,9 @@ exports.getMyDrivers = async (req, res) => {
   const total = data.length;
   const paginatedData = data.slice(skip, skip + limit);
 
-  return res.json({
+  return res.status(200).json({
+    success:true,
+    message:"Fetch All Driver Data",
     count: paginatedData.length,
     data: paginatedData,
     pagination: {
@@ -401,4 +657,11 @@ exports.getMyDrivers = async (req, res) => {
       totalPages: Math.ceil(total / limit) || 1,
     },
   });
+  }catch(error){
+    console.log(error);
+    return res.status(200).json({
+      success:false,
+      message:"Internal Server Error"
+    })
+  }
 };

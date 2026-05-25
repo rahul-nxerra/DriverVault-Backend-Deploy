@@ -112,9 +112,9 @@ exports.getPerformanceRecords = async (req, res) => {
 // ================= CARRIER / ADMIN ACCESS =================
 exports.getDriverPerformanceById = async (req, res) => {
   try {
-    const { driverId } = req.params;
+      const { driverId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(driverId)) {
+      if (!mongoose.Types.ObjectId.isValid(driverId)) {
       return res.status(400).json({
         message: "Invalid driver ID",
       });
@@ -134,13 +134,26 @@ exports.getDriverPerformanceById = async (req, res) => {
 
     // audit log
     await logAudit({
-      actorId: req.carrier?._id || req.user.id,
-      actorType: req.user.role,
+      performedBy: req.user._id,
+
+      role: req.user.role,
+
       action: "VIEW_PERFORMANCE",
+
       resource: "performance",
+
       resourceId: driver._id,
-      targetDriverId: driver._id,
-      metadata: { recordsCount: records.length },
+
+      targetUser: driver.user || driver._id,
+
+      category: "Access",
+
+      message: `${req.user.role} viewed driver performance data`,
+
+      metadata: {
+        recordsCount: records.length,
+        driverId: driver._id,
+      },
       req,
     });
 

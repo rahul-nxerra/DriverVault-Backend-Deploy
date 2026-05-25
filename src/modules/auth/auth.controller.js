@@ -3,8 +3,11 @@ const Driver = require("../driver/models/driver.model");
 const Carrier = require("../carrier/models/carrier.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { authLimiter, authKeyGenerator } = require("../../middlewares/rateLimit.middleware");
-
+const {
+  authLimiter,
+  authKeyGenerator,
+} = require("../../middlewares/rateLimit.middleware");
+const { logAudit } = require("../../utils/auditLogger");
 // ================= REGISTER =================
 exports.register = async (req, res) => {
   try {
@@ -47,7 +50,7 @@ exports.register = async (req, res) => {
     });
 
     let profile = null;
-
+    let userName;
     if (role === "driver") {
       profile = await Driver.create({
         user: user._id,
@@ -55,6 +58,7 @@ exports.register = async (req, res) => {
         lastName,
         licenseType,
       });
+      userName = firstName + " " + lastName;
     }
 
     if (role === "carrier") {
@@ -63,14 +67,45 @@ exports.register = async (req, res) => {
         dotNumber,
         companyName,
       });
+      userName = companyName;
     }
+
+    const isAdminCreation = !!req.user;
+    
+    await logAudit({
+      performedBy: isAdminCreation ? req.user.id : user._id,
+
+      role: isAdminCreation ? req.user.role : user.role,
+
+      action: isAdminCreation ? "CREATE_USER" : "SIGNUP",
+
+      resource: "user",
+
+      resourceId: user._id,
+
+      targetUser: user._id,
+
+      category: isAdminCreation ? "Admin" : "Auth",
+
+      message: isAdminCreation
+        ? `Admin created ${role} account`
+        : `${userName} registered`,
+
+      metadata: {
+        email: user.email,
+        profileId: profile?._id || null,
+        accountType: role,
+      },
+
+      req,
+    });
 
     // ✅ Reset Rate Limit on success
     const key = authKeyGenerator(req);
     authLimiter.resetKey(key);
 
     return res.status(201).json({
-      success:true,
+      success: true,
       message: "User registered successfully",
       user: {
         id: user._id,
@@ -81,7 +116,7 @@ exports.register = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({
-      success:false,
+      success: false,
       message: error.message,
     });
   }
@@ -101,7 +136,7 @@ exports.login = async (req, res) => {
     // ✅ Validate Role
     if (user.role !== expectedRole) {
       return res.status(403).json({
-        msg: `Access denied. You are registered as ${user.role}, but trying to login as ${expectedRole}.`
+        msg: `Access denied. You are registered as ${user.role}, but trying to login as ${expectedRole}.`,
       });
     }
 
@@ -111,9 +146,8 @@ exports.login = async (req, res) => {
       return res.status(400).json({ msg: "Invalid credentials" });
     }
 
-
     let profile = null;
-
+    let message;
     // ✅ Only ONE query based on role
     if (user.role === "driver") {
       profile = await Driver.findOne({ user: user._id });
@@ -122,7 +156,8 @@ exports.login = async (req, res) => {
           success: false,
           msg: "Driver profile not found",
         });
-      };
+      }
+      message = `${profile?.firstName + " " + profile?.lastName}  Login`;
     }
 
     if (user.role === "carrier") {
@@ -130,16 +165,18 @@ exports.login = async (req, res) => {
       if (!profile) {
         return res.status(404).json({
           success: false,
-          msg: "Driver profile not found",
+          msg: "Carrier profile not found",
         });
       }
+      message = `${profile?.companyName} Login`;
     }
 
-    // ✅ Block suspended/deleted/pending users
-    if (
-      profile &&
-      ["suspend", "delete"].includes(profile.status)
-    ) {
+    if (user.role === "admin") {
+      message = `Admin Login`;
+    }
+
+    // ✅ Block suspended/deleted users
+    if (profile && ["suspend", "delete"].includes(profile.status)) {
       return res.status(403).json({
         success: false,
         msg: `Your account is ${profile.status}`,
@@ -153,12 +190,29 @@ exports.login = async (req, res) => {
       { expiresIn: "1d" },
     );
 
+    await logAudit({
+      performedBy: user._id,
+      role: user.role,
+      action: "LOGIN",
+      resource: "auth",
+      resourceId: user._id,
+      targetUser: user._id,
+      category: "Auth",
+      message,
+      metadata: {
+        loginRole: expectedRole,
+        profileId: profile?._id || null,
+      },
+      req,
+    });
+
     // ✅ Reset Rate Limit on success
     const key = authKeyGenerator(req);
     authLimiter.resetKey(key);
 
     return res.status(200).json({
-      msg: "Login successful",
+      success: true,
+      messeg: "Login successful",
       token,
       user: {
         id: user._id,
