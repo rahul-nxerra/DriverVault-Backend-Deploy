@@ -21,4 +21,7 @@ router.post(
   asyncHandler(authController.login),
 );
 
+router.post("/forgot-password", authLimiter, asyncHandler(authController.forgotPassword));
+router.post("/reset-password/:token",  asyncHandler(authController.resetPassword));
+
 module.exports = router;

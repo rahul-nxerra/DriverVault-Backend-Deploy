@@ -21,15 +21,23 @@ const userSchema = new mongoose.Schema(
       enum: ["driver", "carrier", "admin"],
       required: true,
     },
-    status:{
+    status: {
       type: String,
-      enum: ["active", "pending", "delete","suspend"],
+      enum: ["active", "pending", "delete", "suspend"],
       default: "active",
-    }
+    },
+    resetPasswordToken: {
+      type: String,
+      default: null,
+    },
+
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ✅ Prevent overwrite error
-module.exports =
-  mongoose.models.User || mongoose.model("User", userSchema);
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);

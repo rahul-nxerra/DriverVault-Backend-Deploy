@@ -8,6 +8,11 @@ const {
   authKeyGenerator,
 } = require("../../middlewares/rateLimit.middleware");
 const { logAudit } = require("../../utils/auditLogger");
+const { sendMail } = require("../../utils/sendMail");
+const { getUserByEmail } = require("../admin/services/users");
+
+const crypto = require("crypto");
+
 // ================= REGISTER =================
 exports.register = async (req, res) => {
   try {
@@ -224,6 +229,85 @@ exports.login = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       msg: error.message,
+    });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await getUserByEmail(email);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // generate token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    // save token + expiry
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+
+    await user.save();
+
+    await sendMail(email, resetToken);
+
+    res.status(200).json({
+      success: true,
+      message: "Reset link sent successfully",
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+    
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired token",
+      });
+    }
+    const bcrypt = require("bcryptjs");
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    user.password = hashedPassword;
+
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset successful",
+    });
+  } catch (error) {
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
     });
   }
 };

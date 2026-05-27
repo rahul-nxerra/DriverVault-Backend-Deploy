@@ -89,31 +89,23 @@ exports.updatedispute = async (req, res) => {
       action = "resolved";
     }
 
-     if (status === "rejected") {
+    if (status === "rejected") {
       action = "rejected";
     }
     await logAudit({
       performedBy: req.user.id,
       role: req.user.role,
-
       action,
-
       resource: "dispute",
-
       resourceId: dispute._id,
-
       targetUser: dispute.driver.user,
-
       category: "Data",
-
       message: `${status} dispute By Admin`,
-
       metadata: {
         disputeId: dispute._id,
         title: dispute.title,
         driverProfileId: dispute.driver._id,
       },
-
       req,
     });
 
